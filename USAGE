@@ -1,0 +1,126 @@
+QUICK USAGE INSTRUCTIONS
+To make a conformer ensemble:
+    UCONGA_generate.py -i -d 30 molecule_name.cml
+
+To analyse a conformer ensemble:
+    UCONGA_analyse.py -i Conformer_*_molecule_name.cml > molecule_name_analysis.csv
+
+Changes you might want to make:
+    * Remove the -i option if you do not want to treat enantiomeric conformers as identical
+    * Add a -k n option to UCONGA_analyse to only make n clusters instead of trying many numbers and finding the best
+    * Add a -f gauss and -o Conformer_*_molecule_name.gjf to UCONGA_generate to make Gaussian input files
+
+Complete instructions
+Generation
+usage: UCONGA_generate.py [-h] [-s SCALING] [-d DELTA] [-i] [-o OUTPUT_NAME]
+                          [-f OUTPUT_FORMAT]
+                          file_name
+
+    UCONGA: Universal CONformer Generation and Analysis
+    ---------------------------------------------------
+    A conformer generation method that doesn't assume you're trying
+    to dock a drug-like molecule to a protein.
+    ---------------------------------------------------------------
+    Nathaniel Gunby, Dr. Deborah Crittenden, Dr. Sarah Masters
+    Department of Chemistry
+    University of Canterbury
+    Christchurch
+    New Zealand
+    
+
+positional arguments:
+  file_name             cml file containing the molecule
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -s SCALING, --scaling SCALING
+                        Scaling factor for van der Waals radii, 0<s<1
+                        (default=0.7)
+  -d DELTA, --delta DELTA
+                        Angle in degrees to step the rotatable bonds by
+                        (default=15)
+  -i, --allow_inversion
+                        Ignore stereochemistry (treat enantiomeric conformers
+                        as identical).
+  -o OUTPUT_NAME, --output_name OUTPUT_NAME
+                        Base name for the output files. Must contain a * which
+                        will be replaced by the conformer number. Default =
+                        Conformer_*_${Input_name}
+  -f OUTPUT_FORMAT, --output_format OUTPUT_FORMAT
+                        File format to output results in: cml, xyz, gms
+                        (GAMESS input geometry),nw (nwchem input geometry),
+                        gauss (Gaussian input geometry)
+
+Conformer alignment for visualisation
+usage: align.py [-h] [-i] [-f OUTPUT_FORMAT] [-c CENTER_ID]
+                ref_file input_files [input_files ...]
+
+    UCONGA: Universal CONformer Generation and Analysis
+    ----------------------------------------------------
+    A tool to align different conformers as a utility for UCONGA_analyse
+    ----------------------------------------------------
+    Nathaniel Gunby, Dr. Deborah Crittenden, Dr. Sarah Masters
+    Department of Chemistry
+    University of Canterbury
+    Christchurch
+    New Zealand
+    
+
+positional arguments:
+  ref_file              cml file containing the reference conformer that all
+                        others will be aligned to
+  input_files           cml files containing the other conformers to be
+                        algigned
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -i, --allow_inversion
+                        Treat enantiomeric conformers as identical? (Default =
+                        No)
+  -f OUTPUT_FORMAT, --output_format OUTPUT_FORMAT
+                        File format to output results in: cml, xyz, gms
+                        (GAMESS input geometry), nw (nwchem input geometry),
+                        gauss (Gaussian input geometry)
+  -c CENTER_ID, --center_id CENTER_ID
+                        Atom ids to use for alignment (default = all heavy
+                        atoms)
+
+Conformer ensemble analysis
+usage: UCONGA_analyse.py [-h] [-n] [-k K] [-o OUTPUT_NAME] [-i]
+                         [-u UNIQUENESS_CUTOFF] [-H] [-r REFERENCE_NAMES]
+                         input_files [input_files ...]
+
+    UCONGA: Universal CONformer Generation and Analysis
+    ---------------------------------------------------
+    A conformer diversity analysis tool that doesn't assume you're trying
+    to dock a drug-like molecule to a protein.
+    ----------------------------------------------------------------------
+    Nathaniel Gunby, Dr. Deborah Crittenden, Dr. Sarah Masters
+    Department of Chemistry
+    University of Canterbury
+    Christchurch
+    New Zealand
+    
+
+positional arguments:
+  input_files           cml files containing the conformers to be analysed
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -n, --nocluster       Do not perform clustering - calculate rmsd values only
+  -k K, --k K           Number of clusters for k-means clustering. If omitted,
+                        k will be chosen using the Calinski-Harabasz Criterion
+  -o OUTPUT_NAME, --output_name OUTPUT_NAME
+                        File to write the rmsd matrix to. Default: stdout
+  -i, --allow_inversion
+                        Treat enantiomeric conformers as identical? (Default =
+                        No)
+  -u UNIQUENESS_CUTOFF, --uniqueness_cutoff UNIQUENESS_CUTOFF
+                        RMSD cutoff in Angstroms to treat conformers as unique
+                        (default = 1)
+  -H, --use_hierachical_clustering
+                        Use hierachical clustering (default = k-means
+                        clustering)
+  -r REFERENCE_NAMES, --reference_names REFERENCE_NAMES
+                        Reference conformer(s) to find the best fit to
+                        (optional)
