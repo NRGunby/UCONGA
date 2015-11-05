@@ -274,6 +274,13 @@ if __name__ == '__main__':
         in_name = os.path.normpath(args.file_name)
         in_path_name, in_file_name = os.path.split(in_name)
         base_file_name = os.path.join(in_path_name, 'Conformer_{0}_' + in_file_name)
+        # Make sure that the file extension is appropriate to the contents of the file
+        if args.output_format == 'xyz':
+            base_file_name = os.path.splitext(base_file_name) + '.xyz'
+        elif args.output_format == 'gauss':
+            base_file_name = os.path.splitext(base_file_name) + '.gjf'
+        elif args.output_format != 'cml':
+            base_file_name= os.path.splitext(base_file_name) + '.inp'
     else:
         base_file_name = args.output_name.replace('*', '{0}')
     if '{0}' not in base_file_name:

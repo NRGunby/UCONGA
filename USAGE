@@ -8,7 +8,7 @@ To analyse a conformer ensemble:
 Changes you might want to make:
     * Remove the -i option if you do not want to treat enantiomeric conformers as identical
     * Add a -k n option to UCONGA_analyse to only make n clusters instead of trying many numbers and finding the best
-    * Add a -f gauss and -o Conformer_*_molecule_name.gjf to UCONGA_generate to make Gaussian input files
+    * Add a -f gauss option to UCONGA_generate to make Gaussian input files
 
 Complete instructions
 Generation
