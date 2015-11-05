@@ -52,7 +52,7 @@ optional arguments:
                         gauss (Gaussian input geometry)
 
 Conformer alignment for visualisation
-usage: align.py [-h] [-i] [-f OUTPUT_FORMAT] [-c CENTER_ID]
+usage: UCONGA_align.py [-h] [-i] [-f OUTPUT_FORMAT] [-c CENTER_ID]
                 ref_file input_files [input_files ...]
 
     UCONGA: Universal CONformer Generation and Analysis
