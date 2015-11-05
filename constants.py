@@ -1,8 +1,8 @@
-import os.path
+import os
 from csv import reader as csv_reader
 from math import radians
 # File locations
-UCONGA_root = os.path.join('/Users', 'Nate', 'Documents', 'U-CONGA')
+UCONGA_root = os.getcwd()
 pt_file = os.path.join(UCONGA_root, 'periodic_table.csv')
 # Parse the periodic table csv file
 periodic_table = {}
