@@ -12,7 +12,7 @@ Changes you might want to make:
 
 Complete instructions
 Generation
-usage: UCONGA_generate.py [-h] [-s SCALING] [-d DELTA] [-i] [-o OUTPUT_NAME]
+usage: python UCONGA_generate.py [-h] [-s SCALING] [-d DELTA] [-i] [-o OUTPUT_NAME]
                           [-f OUTPUT_FORMAT]
                           file_name
 
@@ -52,7 +52,7 @@ optional arguments:
                         gauss (Gaussian input geometry)
 
 Conformer alignment for visualisation
-usage: UCONGA_align.py [-h] [-i] [-f OUTPUT_FORMAT] [-c CENTER_ID]
+usage: python UCONGA_align.py [-h] [-i] [-f OUTPUT_FORMAT] [-c CENTER_ID]
                 ref_file input_files [input_files ...]
 
     UCONGA: Universal CONformer Generation and Analysis
@@ -86,7 +86,7 @@ optional arguments:
                         atoms)
 
 Conformer ensemble analysis
-usage: UCONGA_analyse.py [-h] [-n] [-k K] [-o OUTPUT_NAME] [-i]
+usage: python UCONGA_analyse.py [-h] [-n] [-k K] [-o OUTPUT_NAME] [-i]
                          [-u UNIQUENESS_CUTOFF] [-H] [-r REFERENCE_NAMES]
                          input_files [input_files ...]
 
