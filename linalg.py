@@ -10,23 +10,17 @@ def rotation_axis_angle(axis, angle):
     '''
     Returns the matrix for rotation by an angle around an axis
     '''
-    if abs(angle) < 1E-7:
-        return numpy.array([[1, 0, 0], [0, 1, 0], [0, 0, 1]])
-    elif abs(math.pi - angle) < 1E-7:
-        return numpy.array([[1, 0, 0], [0, -1, 0], [0, 0, -1]])
-    else:
-        sin = math.sin(angle)
-        cos = math.cos(angle)
-        comp = 1 - cos
-        x, y, z = normalise(axis)
-        mat = numpy.array([[(cos + x*x*comp), (x*y*comp - z*sin), (x*z*comp + y*sin)],
-               [(y*x*comp + z*sin), (cos + y*y*comp), (y*z*comp - x*sin)],
-               [(z*x*comp - y*sin), (z*y*comp + x*sin), (cos + z*z*comp)]])
-        should_be_I = mat.dot(mat.transpose())
-        I = numpy.ma.identity(3)
-        # There should be a way of doing this in numpy
-        numpy.testing.assert_array_almost_equal(I, should_be_I, 3)
-        return mat
+    sin = math.sin(angle)
+    cos = math.cos(angle)
+    comp = 1 - cos
+    x, y, z = normalise(axis)
+    mat = numpy.array([[(cos + x*x*comp), (x*y*comp - z*sin), (x*z*comp + y*sin)],
+                       [(y*x*comp + z*sin), (cos + y*y*comp), (y*z*comp - x*sin)],
+                       [(z*x*comp - y*sin), (z*y*comp + x*sin), (cos + z*z*comp)]])
+    should_be_I = mat.dot(mat.transpose())
+    I = numpy.ma.identity(3)
+    numpy.testing.assert_array_almost_equal(I, should_be_I, 3)
+    return mat
 
 
 def rotation_from_axes(ax1, ax2):  # To test
@@ -38,7 +32,11 @@ def rotation_from_axes(ax1, ax2):  # To test
     if max(numpy.absolute(ax1 - ax2)) < 1E-7:
         return numpy.array([[1, 0, 0], [0, 1, 0], [0, 0, 1]])
     elif max(numpy.absolute(ax1 + ax2)) < 1E-7:
-        return numpy.array([[1, 0, 0], [0, -1, 0], [0, 0, -1]])
+        ang = angle_between(ax1, ax2)
+        z = math.sqrt(1/(1 + (ax1[2]/ax1[1])**2))
+        y = math.sqrt(1 - z**2)
+        rot_ax = numpy.array([0, y, z])
+        return rotation_axis_angle(rot_ax, ang)
     else:
         ang = angle_between(ax1, ax2)
         rot_ax = numpy.cross(ax1, ax2)
