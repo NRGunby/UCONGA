@@ -249,7 +249,7 @@ if __name__ == '__main__':
     New Zealand
     '''
     scaling_help = 'Scaling factor for van der Waals radii, 0<s<1 (default=0.7)'
-    delta_help = 'Angle in degrees to step the rotatable bonds by (default=15)'
+    delta_help = 'Angle in degrees to step the rotatable bonds by (default=30)'
     f_help = 'File format to output results in: cml, xyz, gms (GAMESS input geometry),'
     f_help += 'nw (nwchem input geometry), gauss (Gaussian input geometry)'
     o_help = 'Base name for the output files. Must contain a * which will be replaced '
@@ -259,7 +259,7 @@ if __name__ == '__main__':
                             formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('-s', '--scaling', help=scaling_help, type=float,
                         default=0.7)
-    parser.add_argument('-d', '--delta', help=delta_help, type=int, default=15)
+    parser.add_argument('-d', '--delta', help=delta_help, type=int, default=30)
     parser.add_argument('-i', '--allow_inversion', help=i_help, action='store_true')
     parser.add_argument('-o', '--output_name', help=o_help)
     parser.add_argument('-f', '--output_format', help=f_help, default='cml')

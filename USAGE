@@ -1,6 +1,6 @@
 QUICK USAGE INSTRUCTIONS
 To make a conformer ensemble:
-    UCONGA_generate.py -i -d 30 molecule_name.cml
+    UCONGA_generate.py -i molecule_name.cml
 
 To analyse a conformer ensemble:
     UCONGA_analyse.py -i Conformer_*_molecule_name.cml > molecule_name_analysis.csv
@@ -38,7 +38,7 @@ optional arguments:
                         (default=0.7)
   -d DELTA, --delta DELTA
                         Angle in degrees to step the rotatable bonds by
-                        (default=15)
+                        (default=30)
   -i, --allow_inversion
                         Ignore stereochemistry (treat enantiomeric conformers
                         as identical).
