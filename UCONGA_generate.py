@@ -8,11 +8,13 @@ import warnings
 
 def test_pair(pair, scaling):
     '''
-    Test whether a pair of atoms are too close
-    Too close means they are closer than the scaled sum of their vdW radii
-    Returns True if the pair is OK and False if it is not
-    '''
+        Test whether a pair of atoms are too close
+        Too close means they are closer than the scaled sum of their vdW radii
+        Returns True if the pair is OK and False if it is not
+        '''
     radii = [each.get_vdw() for each in pair]
+    if 0.7 < scaling and set([i.num for i in pair]) in [set([1, 7]), set([1, 7])]:
+        scaling = 0.7 # There is the possibility of hydrogen bonding
     cutoff = scaling * sum(radii)
     distance = pair[0].get_distance(pair[1])
     if cutoff > distance:
@@ -23,12 +25,12 @@ def test_pair(pair, scaling):
 
 def test_mol(mol, scaling):
     '''
-    Test whether any >1,4 neighbours in an molecule are too close together
-    Too close is defined as it is for test_pair
-    '''
+        Test whether any >1,4 neighbours in an molecule are too close together
+        Too close is defined as it is for test_pair
+        '''
     for each_pair in mol.all_pairs():
         atom_pair = [mol.atoms[each] for each in each_pair]
-        if test_pair(atom_pair, scaling) is False:
+        if not mol.is_in_ring(*each_pair) and test_pair(atom_pair, scaling) is False:
             return False
     else: # Not technically necessary but clearer
         return True
@@ -248,7 +250,7 @@ if __name__ == '__main__':
     Christchurch
     New Zealand
     '''
-    scaling_help = 'Scaling factor for van der Waals radii, 0<s<1 (default=0.7)'
+    scaling_help = 'Scaling factor for van der Waals radii, 0<s<1 (default=0.9)'
     delta_help = 'Angle in degrees to step the rotatable bonds by (default=30)'
     f_help = 'File format to output results in: cml, xyz, gms (GAMESS input geometry),'
     f_help += 'nw (nwchem input geometry), gauss (Gaussian input geometry)'
@@ -258,7 +260,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=description,
                             formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('-s', '--scaling', help=scaling_help, type=float,
-                        default=0.7)
+                        default=0.9)
     parser.add_argument('-d', '--delta', help=delta_help, type=int, default=30)
     parser.add_argument('-i', '--allow_inversion', help=i_help, action='store_true')
     parser.add_argument('-o', '--output_name', help=o_help)

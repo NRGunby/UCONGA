@@ -35,7 +35,7 @@ optional arguments:
   -h, --help            show this help message and exit
   -s SCALING, --scaling SCALING
                         Scaling factor for van der Waals radii, 0<s<1
-                        (default=0.7)
+                        (default=0.9)
   -d DELTA, --delta DELTA
                         Angle in degrees to step the rotatable bonds by
                         (default=30)
