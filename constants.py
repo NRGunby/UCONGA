@@ -57,8 +57,8 @@ periodic_table = {'Xx': {'num':  0, 'vdw': 0.0,  'mass':  0.0},     'H': {'num':
                   'Hs': {'num':108, 'vdw': 2.0,  'mass':269},      'Mt': {'num':109, 'vdw': 2.0,  'mass':268},
                   'Ds': {'num':110, 'vdw': 2.0,  'mass':269},      'Rg': {'num':111, 'vdw': 2.0,  'mass':272},
                   'Cn': {'num':112, 'vdw': 2.0,  'mass':277},     'Uut': {'num':113, 'vdw': 2.0,  'mass':286},
-                 'Uuq': {'num':114, 'vdw': 2.0,  'mass':289},     'Uup': {'num':115, 'vdw': 2.0,  'mass':289},
-                 'Uuh': {'num':116, 'vdw': 2.0,  'mass':298}}
+                  'Fl': {'num':114, 'vdw': 2.0,  'mass':289},     'Uup': {'num':115, 'vdw': 2.0,  'mass':289},
+                  'Lv': {'num':116, 'vdw': 2.0,  'mass':298}}
 
 periodic_list = ['Xx', 'H', 'He',
                  'Li', 'Be', 'B', 'C', 'N', 'O', 'F', 'Ne',
@@ -68,7 +68,7 @@ periodic_list = ['Xx', 'H', 'He',
                  'Rb', 'Sr', 'Y', 'Zr', 'Nb', 'Mo', 'Tc', 'Ru', 'Rh', 'Pd', 'Ag', 'Cd',
                     'In', 'Sn', 'Sb', 'Te', 'I', 'Xe',
                  'Cs', 'Ba', 'La', 'Ce', 'Pr', 'Nd', 'Pm', 'Sm', 'Eu', 'Gd', 'Tb', 'Dy', 'Ho', 'Er', 'Tm', 'Yb', 'Lu', 'Hf', 'Ta', 'W', 'Re', 'Os', 'Ir', 'Pt', 'Au', 'Hg', 'Tl', 'Pb', 'Bi', 'Po', 'At', 'Rn',
-                 'Fr', 'Ra', 'Ac', 'Th', 'Pa', 'U', 'Np', 'Pu', 'Am', 'Cm', 'Bk', 'Cf', 'Es', 'Fm', 'Md', 'No', 'Lr', 'Rf', 'Db', 'Sg', 'Bh', 'Hs', 'Mt', 'Ds', 'Rg', 'Cn', 'Uut', 'Uuq', 'Uup', 'Uuh']
+                 'Fr', 'Ra', 'Ac', 'Th', 'Pa', 'U', 'Np', 'Pu', 'Am', 'Cm', 'Bk', 'Cf', 'Es', 'Fm', 'Md', 'No', 'Lr', 'Rf', 'Db', 'Sg', 'Bh', 'Hs', 'Mt', 'Ds', 'Rg', 'Cn', 'Uut', 'Fl', 'Uup', 'Lv']
 # cml file attribute names
 lbl_atom = 'atom'
 lbl_id = 'id'
