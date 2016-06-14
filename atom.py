@@ -12,6 +12,8 @@ class atom(object):
         self.num = num
         self.coords = numpy.array([x, y, z])
         self.mol = mol
+        self.ids_cache = []
+        self.get_id_cache = -1
 
     def get_id(self):
         '''
@@ -19,7 +21,11 @@ class atom(object):
             This is zero-based
             '''
         if self.mol:
-            return self.mol.atoms.index(self)
+            if self.get_id_cache >= 0:
+                return self.get_id_cache
+            else:
+                self.get_id_cache = self.mol.atoms.index(self)
+                return self.get_id_cache
         else:
             raise(ValueError, "Atom not associated with a molecule")
 
@@ -27,12 +33,12 @@ class atom(object):
         '''
         Returns the ids of all atoms bonded to this atom
         '''
-        idx_self = self.get_id()
-        all_ids_bonded = []
-        for each_idx_atom in range(len(self.mol.atoms)):
-            if self.mol.get_bond_order(idx_self, each_idx_atom):
-                all_ids_bonded.append(each_idx_atom)
-        return all_ids_bonded
+        if not self.ids_cache:
+            idx_self = self.get_id()
+            for each_idx_atom in range(len(self.mol.atoms)):
+                if self.mol.get_bond_order(idx_self, each_idx_atom):
+                    self.ids_cache.append(each_idx_atom)
+        return self.ids_cache[:]
 
     def get_heavy_valence(self):
         '''
