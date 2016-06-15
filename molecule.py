@@ -4,7 +4,7 @@ from collections import deque
 import linalg
 import numpy
 import atom
-from math import atan2, sin, cos, degrees, acos
+from math import atan2, sin, cos, degrees, acos, radians
 from constants import lbl_atom, lbl_atom_array, lbl_bond, lbl_bond_array, lbl_atom_refs, lbl_order, id_to_py, lbl_molecule, py_to_id
 from sys import stderr
 import warnings
@@ -54,7 +54,11 @@ class molecule(object):
         self.atoms.append(new_atom)
         new_atom.mol = self
         new_num_atoms = len(self.atoms)
-        self.bonds.resize([new_num_atoms, new_num_atoms])
+        new_array = numpy.zeros((new_num_atoms, new_num_atoms))
+        for i in range(new_num_atoms - 1):
+            for j in range(new_num_atoms - 1):
+                new_array[i][j] = self.bonds[i][j]
+        self.bonds = new_array
         if done:
             self.update()
 
@@ -69,6 +73,8 @@ class molecule(object):
         else:
             self.bonds[id1][id2] = order
             self.bonds[id2][id1] = order
+            self.atoms[id1].ids_cache = []
+            self.atoms[id2].ids_cache = []
             if done:
                 self.update()
 
@@ -89,7 +95,13 @@ class molecule(object):
     def get_angle(self, id_1, id_center, id_2):
         atoms = [self.atoms[i] for i in id_1, id_center, id_2]
         a, b = [atoms[1].get_vector(i) for i in (atoms[0], atoms[2])]
-        return acos(a.dot(b)/(numpy.linalg.norm(a)*numpy.linalg.norm(b)))
+        tmp = a.dot(b)/(numpy.linalg.norm(a)*numpy.linalg.norm(b))
+        # Deal with possible floating point rounding problems
+        if tmp > 1:
+            tmp = 1
+        if tmp < -1:
+            tmp = -1
+        return acos(tmp)
 
     def coord_matrix(self):
         '''
@@ -210,8 +222,6 @@ class molecule(object):
         '''
         Checks if bond between two atoms with given ids is in a ring
         '''
-        if self.get_bond_order(id1, id2) == 0:
-            raise(AssertionError, 'Supplied atoms are not bonded')
         for each_ring in self.rings:
             if id1 in each_ring and id2 in each_ring:
                 return True
