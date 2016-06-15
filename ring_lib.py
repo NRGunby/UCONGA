@@ -1,12 +1,8 @@
-import molecule
 import linalg
 import numpy
-import UCONGA_analyse
 from itertools import chain
 import warnings
 import mol_tree
-import os
-import glob
 from scipy.optimize import leastsq
 from math import degrees
 
@@ -55,7 +51,7 @@ def is_flippable(mol, ring_at_ids):
     return False
 
 
-def all_ring_conformers(mol):
+def all_ring_conformers(mol, full_flip=2):
     '''
     Find all combinations of all ring conformers for all the rings in a molecule
     '''
@@ -63,31 +59,36 @@ def all_ring_conformers(mol):
     ring_conformer_combinations = [mol]
     for each_ring_system in all_ring_systems:
         if is_flippable(mol, each_ring_system):
-            grouped_conformer_combinations = [find_ring_conformers(i, each_ring_system)
+            grouped_conformer_combinations = [find_ring_conformers(i, each_ring_system, full_flip)
                                               for i in ring_conformer_combinations]
             ring_conformer_combinations = [i for i  in chain(*grouped_conformer_combinations)]
     return ring_conformer_combinations
 
 
-def find_ring_conformers(base_mol, each_ring_system):
+def find_ring_conformers(base_mol, each_ring_system, full_flip=2):
     '''
     Finds all unique conformers for a given ring system
     '''
-    ret = []
-    found_conformers = []
-    all_dihedrals = [i for i in base_mol.all_torsions()]
-    idx = 1
-    for each_base_conformer in base_ring_variations(base_mol, each_ring_system):
-        torsions = [int(degrees(each_base_conformer.get_torsion(*i))) for i in all_dihedrals]
-        if (torsions not in found_conformers) and ([-1 * i for i in torsions] not in found_conformers):
-            ret.append(each_base_conformer)
-            found_conformers.append(torsions)
-            mirror_image = flip_ring(each_base_conformer, each_ring_system)
-            torsions = [int(degrees(mirror_image.get_torsion(*i))) for i in all_dihedrals]
+    if full_flip > 1:
+        ret = []
+        found_conformers = []
+        all_dihedrals = [i for i in base_mol.all_torsions()]
+        idx = 1
+        for each_base_conformer in base_ring_variations(base_mol, each_ring_system):
+            torsions = [int(degrees(each_base_conformer.get_torsion(*i))) for i in all_dihedrals]
             if (torsions not in found_conformers) and ([-1 * i for i in torsions] not in found_conformers):
-                ret.append(mirror_image)
+                ret.append(each_base_conformer)
                 found_conformers.append(torsions)
-        idx += 1
+                mirror_image = flip_ring(each_base_conformer, each_ring_system)
+                torsions = [int(degrees(mirror_image.get_torsion(*i))) for i in all_dihedrals]
+                if (torsions not in found_conformers) and ([-1 * i for i in torsions] not in found_conformers):
+                    ret.append(mirror_image)
+                    found_conformers.append(torsions)
+            idx += 1
+    elif full_flip == 1:
+        ret = [base_mol.copy(), flip_ring(base_mol, each_ring_system)]
+    else:
+        ret = [base_mol.copy()
     return ret
 
 
