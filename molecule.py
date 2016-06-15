@@ -1,12 +1,11 @@
 import xml.etree.ElementTree as ET
-from itertools import product, combinations
+from itertools import combinations
 from collections import deque
 import linalg
 import numpy
 import atom
-from math import atan2, sin, cos, degrees, acos, radians
+from math import atan2, sin, cos, degrees, acos
 from constants import lbl_atom, lbl_atom_array, lbl_bond, lbl_bond_array, lbl_atom_refs, lbl_order, id_to_py, lbl_molecule, py_to_id
-from sys import stderr
 import warnings
 
 class molecule(object):

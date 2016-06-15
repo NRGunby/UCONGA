@@ -1,4 +1,3 @@
-from math import radians
 # van der Waals radii ,atomic numbers, and masses
 periodic_table = {'Xx': {'num':  0, 'vdw': 0.0,  'mass':  0.0},     'H': {'num':  1, 'vdw': 1.1,  'mass':  1.0079},
                   'He': {'num':  2, 'vdw': 1.4,  'mass':  4.00260},'Li': {'num':  3, 'vdw': 1.81, 'mass':  6.941},
