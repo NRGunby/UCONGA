@@ -3,6 +3,8 @@ import math
 from itertools import combinations_with_replacement, chain, groupby, count, compress, cycle
 from collections import Counter
 import molecule
+import constants
+import UCONGA
 matplotlib_available = False
 cluster_available = False
 try:
@@ -18,42 +20,161 @@ except ImportError:
     pass
 import warnings
 from os import path
+# Molecule preparation functions
 
-def find_best_fit(ref_coords, other_coords):
-    '''
-    Find the molecules in other_coords that is closest to ref_coords
-    '''
-    rmsds = [calc_min_rmsd(ref_coords, i) for i in other_coords]
-    m = min(rmsds)
-    return m, rmsds.index(m)
 
-def best_fit_wrapper(all_ref_names, other_mols, other_mol_names, writer):
-    '''
-    Find the best fit (see find_best_fit) of multiple reference molecules
-    and prints everything nicely to a csv file
-    '''
-    ref_mols = [molecule.from_cml(i) for i in all_ref_names]
-    writer.writerow(['Matching supplied conformers to generated conformers'])
-    writer.writerow(['Supplied conformer', 'RMSD (A)', 'Closest generation conformer'])
-    for i in ref_mols + other_mols:
-        i.center()
-    all_ref_coords = [i.coord_matrix() for i in ref_mols]
-    other_coords = [i.coord_matrix() for i in other_mols]
-    for each_ref_mol, each_ref_name in zip(all_ref_coords, all_ref_names):
-        ref_rmsd, ref_idx = find_best_fit(each_ref_mol, other_coords)
-        writer.writerow([each_ref_name, ref_rmsd, other_mol_names[ref_idx]])
+mass = {'H':1.007825,'C':12.000000,'N':14.003074,'O':15.994914,'Fe':55.934936, 'Al':26.982, 'Si':28.085, 'P':30.973761998, 'S':32.06, 'F':18.998403163, 'Cl':35.45, 'Br':79.904, 'I':126.90447, 'Cr':51.996}
 
-    writer.writerow([''])
+def canonicalise(mol):
+    rb = UCONGA.find_rotatable_bonds(mol)
+    centralness = [sum(i) for i in mol.distances]
+    classes = mol.get_morgan_equivalencies()
+    # Normalise the coords for the reference w. r. t. the symmetry operations:
+    for each_bond in rb:
+        if centralness[each_bond[0]] > centralness[each_bond[-1]]:
+            each_bond = each_bond[::-1]
+        if UCONGA.is_symmetrical_rotor(each_bond, mol, classes):
+            sym_degree = float(len(mol.atoms[each_bond[2]].search_away_from(each_bond[1])))
+            increment = 2*pi/sym_degree
+            each_torsion = mol.get_torsion(*each_bond)
+            while each_torsion > increment:
+                each_torsion -= increment
+            while each_torsion < 0:
+                each_torsion += increment
+            mol.set_torsion(*([i for i in each_bond] + [each_torsion]))
+    # Group bonds by siblings - this is inefficient but not the limiting factor performance-wise
+    new_dict = {}
+    partial_symmetry_groups = []
+    for each_id, each_bond in enumerate(rb):
+        if centralness[each_bond[0]] > centralness[each_bond[-1]]:
+            each_bond = each_bond[::-1]
+        elder_bond_ids = [int(i) for i in UCONGA.find_older_sibling_ids(each_bond, each_id, mol, classes, new_dict)]
+        app = [each_bond]
+        for i in elder_bond_ids:
+            i_bond = rb[i]
+            if centralness[i_bond[0]] > centralness[i_bond[-1]]:
+                i_bond = i_bond[::-1]
+            app.append(i_bond)
+        partial_symmetry_groups.append(app)
+    partial_symmetry_groups.sort(key=len)
+    # Remove the incomplete groups
+    working_idx = 0
+    while working_idx < len(partial_symmetry_groups) - 1:
+        if True in [partial_symmetry_groups[working_idx][0] in i for i in partial_symmetry_groups[working_idx + 1:]]:
+            del partial_symmetry_groups[working_idx]
+        else:
+            working_idx += 1
+    for each_whole_group in partial_symmetry_groups:
+        ab = [int(math.degrees(mol.get_torsion(*i))) for i in each_whole_group]
+        for idx, i in enumerate(ab):
+            if i < 0:
+                ab[idx] = i + 360
+        ab.sort()
+        for each_bond, each_torsion in zip(each_whole_group, ab):
+            repacked = [i for i in each_bond] + [math.radians(each_torsion)]
+            mol.set_torsion(*repacked)
+
+def calculate_I_tensor(coords, weights):
+    '''
+    Calculate the inertia tensor of a molecule
+    
+    Accepts a coordinate matrix
+            a list of atomic weights
+            
+    Returns the inertia tensor
+    '''
+    x  = coords[:,0]
+    y  = coords[:,1]
+    z  = coords[:,2]
+    I_xx = numpy.sum(weights * (y*y + z*z))
+    I_xy = numpy.sum(weights * x * y) * -1
+    I_xz = numpy.sum(weights * x * z) * -1
+    I_yy = numpy.sum(weights * (x*x + z*z))
+    I_yz = numpy.sum(weights * y * z) * -1
+    I_zz = numpy.sum(weights * (x*x + y*y))
+    return numpy.array([[I_xx, I_xy, I_xz],
+                        [I_xy, I_yy, I_yz],
+                        [I_xz, I_yz, I_zz]])
+
+def align_inertial(mol):
+    '''
+    Aligns a molecule so that its axes of inertia are aligned to the coordinate axes
+    The primary axis (highest moment) will be aligned to the z-axis,
+    while the tertiary (lowest moment) axis will be aligned to the x-axis
+    
+    Accepts a molecule
+    
+    Returns nothing, it modifies the molecule in-place
+    '''
+    c_weights = numpy.array([[mass[constants.periodic_list[i.num]]]for i in mol.atoms])
+    r_weights = c_weights.T[0]
+    c_coords = mol.coord_matrix()
+    #centre on the COM
+    weighted_coords = c_weights * c_coords
+    all_weight = sum(c_weights)
+    com = weighted_coords.sum(axis=0) / all_weight
+    c_coords -= com
+    intertia_mat = calculate_I_tensor(c_coords, r_weights)
+    moments, axes = numpy.linalg.eig(intertia_mat)
+    sorted_axes = numpy.array([ i[1] for i in sorted([(j, k) for j, k in zip(moments, axes)])])
+    c_new_coords = sorted_axes.T.dot(c_coords.T).T
+    for a, c in zip(mol.atoms, c_new_coords):
+        a.coords = c
+
+
+def find_bbox(mol):
+    """
+    Find the bounding box dimensions along the inertial axes
+    
+    Accepts a molecule
+    
+    Returns an array of lengths, from lowest to highest moment of inertia
+    """
+    align_inertial(mol)
+    # Find the eliptical radii along the axes of inertia
+    x = [i.coords[0] for i in mol.atoms]
+    r_x = max(x) - min(x)
+    y = [i.coords[1] for i in mol.atoms]
+    r_y = max(y) - min(y)
+    z = [i.coords[2] for i in mol.atoms]
+    r_z = max(z) - min(z)
+    return numpy.array([r_x, r_y, r_z])
+
+
+def prepare_angles(important_torsions, mols, allow_inversion):
+    '''
+        A utility function for reading data
+        '''
+    tc_angles = [[mol.get_torsion(*torsion) for torsion in important_torsions] for mol in mols]
+    if allow_inversion:
+        new_angles = []
+        for each_mol in tc_angles:
+            if each_mol[0] < 0:
+                new_angles.append([i*-1 for i in each_mol])
+            else:
+                new_angles.append(each_mol)
+        tc_angles = new_angles
+    return tc_angles
+
+# Clustering-related functions
 
 def ch_cluster(data, method):
     '''
-    Performs k-means clustering on a  array of data and
+    Perform clustering on an array of data and
     calculate the Calinski-Harabasz Criterion for various k
     See Calinski and Harabasz., Commun. Stat., 1974, p 1
-    Returns a list of (criterion, cluster) pairs, where each cluster is a list of datum ids:
-    [[datum 1, datum 2,...], cluster2, cluster3,...]
-
+    
+    Accepts an array of data, with individual data points as the rows
+        and a function which takes that data and a number of clusters,
+            and returns a list of each data points' cluster ids, the cluster centers,
+            the total distortion, and a list of the distance from each point to its nearest center
+            
+    Returns a list of tuples containg: the criterion
+                                        a list of each conformer's cluster id
+                                        a list of the distance from each conformer to its cluster center
+    Note that the list starts for two clusters, as the criterion cannot be calulated for one
     '''
+    
     all_data = []
     num_points = len(data)
     std_devs = numpy.std(data, axis=0)
@@ -64,32 +185,44 @@ def ch_cluster(data, method):
         num_points = int(2*math.sqrt(num_points))
     for num_clusters in range(2, num_points):
         with warnings.catch_warnings(record=True) as warnings_log:
-            mapping, codebook, distortion = method(data_to_use, num_clusters, True)
-        if distortion == 0:
+            mapping, codebook, total_distortion, point_distortions = method(data_to_use, num_clusters)
+        if total_distortion == 0:
             warnings.warn('Clustering with %d clusters has too many degrees of freedom. Are some conformers degenerate?' %num_clusters, RuntimeWarning)
         else:
             counts = Counter(mapping)
             ssb = sum([counts[idx]*(numpy.linalg.norm(mean - i)**2) for idx, i in enumerate(codebook)])
-            ch_criterion = ((num_points - num_clusters)*ssb)/((num_clusters - 1) * distortion)
-            all_data.append([ch_criterion, mapping, codebook])
+            ch_criterion = ((num_points - num_clusters)*ssb)/((num_clusters - 1) * total_distortion)
+            all_data.append([ch_criterion, mapping, point_distortions])
     return all_data
 
-def cluster_kmeans(data, k, dist=False):
+def cluster_kmeans(data, k):
     '''
     Performs k-means clustering on a numpy array of data.
-    Returns a list of clusters, where each cluster is a list of ids
+    
+    Accepts an array of data, with individual data points as the rows
+            A number of clusters to make
+    
+    Returns a list of each data points' cluster ids
+            the cluster centers,
+            the total distortion, 
+            a list of the distance from each point to its nearest center
     '''
     whitened_data = scipy.cluster.vq.whiten(data)
-    codebook, distortion = scipy.cluster.vq.kmeans(whitened_data, k, iter=50)
-    mapping = scipy.cluster.vq.vq(whitened_data, codebook)[0]
-    if not dist:
-        return mapping, codebook
-    else:
-        return mapping, codebook, distortion
+    codebook, total_distortion = scipy.cluster.vq.kmeans(whitened_data, k, iter=50)
+    mapping, point_distortions = scipy.cluster.vq.vq(whitened_data, codebook)
+    return mapping, codebook, total_distortion, point_distortions
 
-def cluster_hierarchy(data, k, dist=False):
+def cluster_hierarchy(data, k):
     '''
     Performs hierarchical clustering on a numpy array of data
+    
+    Accepts an array of data, with individual data points as the rows
+    A number of clusters to make
+    
+    Returns a list of each data points' cluster ids
+    the cluster centers,
+    the total distortion,
+    a list of the distance from each point to its nearest center
     '''
     distmat = scipy.spatial.distance.pdist(data)
     linkmat = scipy.cluster.hierarchy.linkage(distmat, method='average')
@@ -98,12 +231,34 @@ def cluster_hierarchy(data, k, dist=False):
     mapped_points.sort(key=lambda x: x[0])
     clusters = [[j[1] for j in i[1]] for i in groupby(mapped_points, key=lambda x: x[0])]
     codebook = numpy.array([numpy.array(i).mean(axis=0) for i in clusters])
-    if not dist:
-        return mapping, codebook
-    else:
-        distortion = sum([numpy.linalg.norm(i[1] - codebook[i[0] - 1]) for i in mapped_points])
-        return mapping, codebook, distortion
+    total_distortion = sum([numpy.linalg.norm(i[1] - codebook[i[0] - 1]) for i in mapped_points])
+    return mapping, codebook, total_distortion, point_distortions
 
+
+def choose_best_clustering(clustering):
+    '''
+    Choose the best cluster size according to the *first derivative* of the Calinski-Harabasz criterion
+    
+    Accecpts a list of tuples of cluster details where the 
+    '''
+    ch_criteria = [i[0] for i in clustering]
+    if len(ch_criteria) == 1:
+        best_id = 0
+    elif len(ch_criteria) == 2:
+        best_id = ch_criteria.index(max(ch_criteria))
+    else:
+        choose_by = ([2 * (ch_criteria[0] - ch_criteria[1])] +
+                     [2*j - i - k for i, j, k in zip(ch_criteria[:-2], ch_criteria[1:-1], ch_criteria[2:])]
+                     + [2 * (ch_criteria[-1] - ch_criteria[-2])])
+        best_id = choose_by.index(max(choose_by))
+    return clustering[best_id][1:]
+
+def reorder(lst, codebook):
+    tmp = [i for i in zip(codebook, lst)]
+    tmp.sort()
+    return [i[1] for i in tmp]
+
+####RMSD-related functions
 
 def calc_rmsd(coords_1, coords_2):
     '''
@@ -162,58 +317,73 @@ def all_the_rmsds(molecules, allow_inversion=True):
         rmsds[j][i] = r
     return rmsds
 
-def parallel_coordinates_setup(torsion_labels, ax=None):
+def arrange_by_clustering(to_be_arranged, ordering):
     '''
-    Some code common to both the clustered and unclustered versions of parallel coordinates visulation
-    In particular, setting up the plot area, axes labels, and x tick marks
-    '''
+        Rearrange a list according to a specified ordering
+        '''
+    tmp = [(ordering[idx], i) for idx, i in enumerate(to_be_arranged)]
+    tmp.sort()
+    return [i[1] for i in tmp]
+
+###### Graphing functions
+
+def bbox_scatter(points, labs, ax=None):
     ax = ax if ax is not None else plt.gca()
     ax.yaxis.set_ticks_position('left')
     ax.xaxis.set_ticks_position('bottom')
-    ax.set_ylabel('Angle ($^\circ$)', size='x-large')
-    ax.set_xlabel('Torsion', size='x-large')
+    colors = plt.cm.Set3(numpy.linspace(0, 1, max(labs)+ 1 - min(labs)))
+    percentiles = numpy.percentile(points, [75, 25], axis=0)
+    iqrs = percentiles[0] - percentiles[1]
+    labels = ( 'Tertiary axis of inertia ($\AA$)', 'Secondary axis of inertia ($\AA$)', 'Primary axis of inertia ($\AA$)')
+    tmp = [(i, idx) for idx, i in enumerate(iqrs)]
+    tmp.sort()
+    x_idx = tmp[2][1]
+    y_idx = tmp[1][1]
+    ax.set_ylabel(labels[y_idx], size='x-large')
+    ax.set_xlabel(labels[x_idx], size='x-large')
+    c_array = [colors[i] for i in labs]
+    ax.scatter(points[:,x_idx], points[:,y_idx], s=50, c=c_array, marker='+')
+    plt.show()
+
+
+def parallel_coordinates(data, torsion_labels, categories, allow_inversion, ax=None):
+    ax = ax if ax is not None else plt.gca()
+    #colors = plt.cm.Set3(numpy.linspace(0, 1, max(categories)+ 1 - min(categories)))
+    colors = [(0.7, 0.0, 0.0, 0.6), (0.0, 0.7, 0.0, 0.6)]
+    ax.yaxis.set_ticks_position('left')
+    ax.xaxis.set_ticks_position('bottom')
+    ax.set_ylabel('Torsion angle value ($^\circ$)', size='x-large')
+    ax.set_xlabel('Torsion label', size='x-large')
     label_positions = range(-360, 450, 90)
     ax.yaxis.set_major_locator(FixedLocator([math.radians(i) for i in label_positions]))
-    ax.yaxis.set_ticklabels([str(i) for i in label_positions])
+    ax.yaxis.set_ticklabels([str(i) for i in label_positions], size='large')
     x_coords = [0.3 * i for i in range(len(torsion_labels))]
     ax.xaxis.set_major_locator(FixedLocator(x_coords))
-    ax.xaxis.set_ticklabels(torsion_labels, rotation=30, ha='right')
-    return ax, x_coords
-
-def parallel_coordinates_finish(ax, filename=None):
-    '''
-    Some code common to both the clustered and unclustered versions of parallel coordinates visulation
-    In particular, adjustiing the axes limits and showing the graph
-    '''
-    curr_ylim = [int(math.degrees(i)) for i in ax.get_ylim()]
-    new_ylim = (90*(curr_ylim[0]/90) - 5, 5 + (90*((curr_ylim[1] + 89)/90)))
-    ax.set_ylim([math.radians(i) for i in new_ylim])
-    plt.tight_layout()
-    if not filename:
-        plt.show()
-    else:
-        plt.savefig(filename)
-
-def parallel_coordinates(clusters, cluster_centres, torsion_labels, ax=None, filename=None):
-    '''
-    Visualises a series of clusters using parallel coordinates
-    Each coordinate is a dihedral angles
-    See https://en.wikipedia.org/wiki/Parallel_coordinates for more on parallel coordinates
-    Individual conformers are drawn with thinner and paler lines than the cluster centres
-    '''
-    ax, x_coords = parallel_coordinates_setup(torsion_labels, ax=None)
-    print '######################################'
-    print torsion_labels, len(torsion_labels)
-    print x_coords, len(x_coords)
-    print cluster_centres
-    print [len(i) for i in cluster_centres]
-    base_colors = [(1, 0, 0), (0, 1, 0), (0, 0, 1),
-                   (1, 1, 0), (0, 1, 1), (1, 0, 1),
-                   (0.5, 0.5, 0), (0, 0.5, 0.5), (0.5, 0, 0.5)]
-    for combo in zip(range(1, len(clusters) + 1), clusters, cluster_centres, cycle(base_colors)):
-        each_id, each_cluster, each_center, each_color = combo
-        ax.plot(x_coords, each_center, label='Cluster %d' %each_id, color=each_color, lw=5, zorder=5000)
-        pale_color = tuple([i * 0.7 for i in each_color] + [0.6])
+    ax.xaxis.set_ticklabels(torsion_labels, size='large')#, va='bottom')#, rotation=30, ha='right')
+    # The tricky thing about plotting angles on a flat graph is getting the wrapping right - is 0 or 360 more communicative?
+    # To do this, find the centers of the clusters, wrap them to be as close to each other as possible,
+    # and wrap the conformers in each cluster to be as close to its center as possible. That creates good wrapping
+    for each_mol in data:
+        if allow_inversion and each_mol[0] < 0:
+            for idx, i in enumerate(each_mol):
+                each_mol[idx] = i*-1
+    all_centers = []
+    clusters = [[j for j, k in zip(data, categories) if k == i] for i in range(max(categories) + 1)]
+    for each_cluster in clusters:
+        # To average angles, they need to be converted to sines and cosines:
+        cart_conformers = numpy.array([[i for i in chain(*[(math.sin(angle), math.cos(angle)) for angle in mol])]
+                                 for mol in each_cluster])
+        average = numpy.mean(cart_conformers, axis=0)
+        center = [math.atan2(s, c) for s, c in zip(average[::2], average[1::2])]
+        all_centers.append(center)
+    for each_center, each_cluster, each_color in zip(all_centers, clusters, colors):
+        for idx, i in enumerate(each_center):
+            j = all_centers[0][idx]
+        
+            if math.pi < j - i:
+                each_center[idx] = i + 2*math.pi
+            elif math.pi < i - j:
+                each_center[idx] = i - 2*math.pi
         for each_conformers in each_cluster:
             for idx, i in enumerate(each_conformers):
                 j = each_center[idx]
@@ -221,20 +391,13 @@ def parallel_coordinates(clusters, cluster_centres, torsion_labels, ax=None, fil
                     each_conformers[idx] = i + 2*math.pi
                 if math.pi < i - j:
                     each_conformers[idx] = i - 2*math.pi
-            ax.plot(x_coords, each_conformers, color=pale_color)
-#ax.legend().get_frame().set_alpha(0.5)
-    parallel_coordinates_finish(ax, filename)
+            ax.plot(x_coords, each_conformers, color=each_color)
+    curr_ylim = [int(math.degrees(i)) for i in ax.get_ylim()]
+    new_ylim = (90*(curr_ylim[0]/90) - 5, 5 + (90*((curr_ylim[1] + 89)/90)))
+    ax.set_ylim([math.radians(i) for i in new_ylim])
+    plt.tight_layout()
+    plt.show()
 
-def nocluster_parallel_coordinates(conformers, torsion_labels, ax=None, filename=None):
-    '''
-    Visualises a series of unclustered conformers using parallel coordinates
-    Each coordinate is a dihedral angles
-    See https://en.wikipedia.org/wiki/Parallel_coordinates for more on parallel coordinates
-    '''
-    ax, x_coords = parallel_coordinates_setup(torsion_labels, ax=None)
-    for each_conformer in conformers:
-        ax.plot(x_coords, each_conformer, color='k')
-    parallel_coordinates_finish(ax, filename)
 
 def greyscale_visualisation(matrix, max_weight=None, ax=None, filename=None):
     """
@@ -259,114 +422,11 @@ def greyscale_visualisation(matrix, max_weight=None, ax=None, filename=None):
     else:
         plt.savefig(filename)
 
-def plot_line(data, labels, ax=None, filename=None):
-    '''
-    Plot a line
-    Data should be a series of (x, y) tuples
-    '''
-    x = [i[0] for i in data]
-    y = [i[1] for i in data]
-    ax = ax if ax is not None else plt.gca()
-    ax.yaxis.set_ticks_position('left')
-    ax.xaxis.set_ticks_position('bottom')
-    ax.set_xlabel(labels[0], size='x-large')
-    ax.set_ylabel(labels[1], size='x-large')
-    ax.plot(x, y, color='k')
-    if not filename:
-        plt.show()
-    else:
-        plt.savefig(filename)
-
-
-# Some utility methods refactored out of __main__ to avoid excess clutter
-
-
-def summarise_cluster(cluster_center, conformer_list, tc_angles):
-    '''
-    Generate summary statistics for a cluster
-    '''
-    ret = {'Average': [math.degrees(i) for i in cluster_center]}
-    relevant_rad_torsions = numpy.array([tc_angles[i] for i in conformer_list])
-    center_to_center = numpy.array([math.pi]) - numpy.mean(relevant_rad_torsions, 0)
-    relevant_rad_torsions += center_to_center
-    stdev = numpy.std(relevant_rad_torsions, 0)
-    ret['Standard Deviation'] = [math.degrees(i) for i in stdev]
-    ret['Range'] = [math.degrees(i) for i in numpy.ptp(relevant_rad_torsions, 0)]
-    ret['Interquartile range'] = [math.degrees(i - j)
-                                  for i, j in zip(numpy.percentile(relevant_rad_torsions, 75, 0),
-                                                  numpy.percentile(relevant_rad_torsions, 25, 0))]
-    return ret
-
-def write_cluster_info(writer, ordering_to_print, rad_centers, important_torsions):
-    '''
-    Utility function to write a clustering and summary statistics to a csv file
-    '''
-    writer.writerow([' %i clusters found' %len(ordering_to_print)])
-    for idx, conformer_list, cluster_center in zip(count(1), ordering_to_print, rad_centers):
-        writer.writerow(['Cluster %i:' %idx])
-        writer.writerow(['Conformers:'] + [mol_names[i] for i in conformer_list])
-        # Now write some information about the clustering
-        writer.writerow(['Dihedral:'] + ['-'.join([str(molecule.py_to_id(j)) for j in i]) for i in important_torsions])
-        for label, values in summarise_cluster(cluster_center, conformer_list, tc_angles).items():
-            writer.writerow([label] + values)
-    writer.writerow([''])
-
-
-def arrange_by_clustering(to_be_arranged, ordering):
-    '''
-    Rearrange a list according to a specified ordering
-    '''
-    tmp = [(ordering[idx], i) for idx, i in enumerate(to_be_arranged)]
-    tmp.sort()
-    return [i[1] for i in tmp]
-
-def choose_best_clustering(ch_data, clustering):
-    '''
-    Choose the best cluster size according to the *first derivative* of the Calinski-Harabasz criterion
-    '''
-    ch_criteria = [i[1] for i in ch_data]
-    if len(ch_data) == 1:
-        best_id = 0
-    elif len(ch_data) == 2:
-        best_id = ch_data.index(max(ch_data))
-    else:
-        choose_by = ([2 * (ch_criteria[0] - ch_criteria[1])] +
-                     [2*j - i - k for i, j, k in zip(ch_criteria[:-2], ch_criteria[1:-1], ch_criteria[2:])]
-                     + [2 * (ch_criteria[-1] - ch_criteria[-2])])
-        best_id = choose_by.index(max(choose_by))
-    return clustering[best_id][1:]
-
-def prepare_angles(important_torsions, mols, allow_inversion):
-    '''
-    A utility function for reading data
-    '''
-    tc_angles = [[mol.get_torsion(*torsion) for torsion in important_torsions] for mol in mols]
-    if args.allow_inversion:
-        new_angles = []
-        for each_mol in tc_angles:
-            if each_mol[0] < 0:
-                new_angles.append([i*-1 for i in each_mol])
-            else:
-                new_angles.append(each_mol)
-        tc_angles = new_angles
-    return tc_angles
-
-def show_ch_info(ch_labels, ch_data, writer):
-    '''
-    A utility function to format the details of choosing the number of clusters
-    for output to a csv file
-    '''
-    writer.writerow(ch_labels)
-    writer.writerows(ch_data)
-    writer.writerow([''])
-    if matplotlib_available:
-        plot_line(ch_data, ch_labels)
-
-
 if __name__ == '__main__':
     import argparse
     import csv
     from sys import stdout
+    from glob import glob
     description = '''
     UCONGA: Universal CONformer Generation and Analysis
     ---------------------------------------------------
@@ -379,90 +439,133 @@ if __name__ == '__main__':
     Christchurch
     New Zealand
     '''
-    n_help = 'Do not perform clustering - calculate rmsd values only'
-    k_help = '''Number of clusters for k-means clustering.
-        If omitted, k will be chosen using the Calinski-Harabasz Criterion'''
-    o_help = 'File to write the rmsd matrix to. Default: stdout'
+    kt_help = '''Number of clusters for torsion-based clustering.
+        If omitted or negative, k will be chosen using the Calinski-Harabasz Criterion
+        If 0, torsion-based clustering will not be performed'''
+    kb_help = '''Number of clusters for bounding-box-based clustering.
+                If omitted or negative, k will be chosen using the Calinski-Harabasz Criterion
+                If 0, bounding-box-based clustering will not be performed'''
+    a_help = 'Run automatically (do not make graphs)'
+    n_help = 'Do not calculate the rmsd matrix (this gets expensive for large ensembles)'
+    o_help = 'File to write the results to. Default: stdout'
     i_help = 'Treat enantiomeric conformers as identical? (Default = No)'
     u_help = 'RMSD cutoff in Angstroms to treat conformers as unique (default = 1)'
     c_help = 'Use hierachical clustering (default = k-means clustering)'
-    r_help = 'Reference conformer(s) to find the best fit to (optional)'
+    r_help = 'How to arrange molecules for RMSD visualisation (t = torsion clustering, b = bounding-box clustering, i or unspecified = conformer id)'
     parser = argparse.ArgumentParser(description=description,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument('-n', '--nocluster', help=n_help, action='store_true')
-    parser.add_argument('-k', '--k', help=k_help, type=int, default=0)
+    parser.add_argument('-t', '--k_torsional', help=kt_help, type=int, default=-1)
+    parser.add_argument('-b', '--k_bounding', help=kb_help, type=int, default=-1)
     parser.add_argument('-o', '--output_name', help=o_help, default=stdout,
                         type=argparse.FileType('wb'))
+    parser.add_argument('-r','--rmsd_arrange', help=r_help, default='i')
+    parser.add_argument('-n', '--no_rmsd', help=n_help, action='store_true')
+    parser.add_argument('-a', '--automatic', help=a_help, action='store_true')
     parser.add_argument('-i', '--allow_inversion', help=i_help, action='store_true')
     parser.add_argument('-u', '--uniqueness_cutoff', type=float, help=u_help, default=1.0)
     parser.add_argument('-H', '--use_hierachical_clustering', help=c_help, action='store_true')
-    parser.add_argument('-r', '--reference_names', help=r_help, action='append')
     parser.add_argument('input_files', help='cml files containing the conformers to be analysed',
                         nargs='+')
     # Prepare input
     args = parser.parse_args()
     input_names = args.input_files
-    if len(input_names) == 1 and '*' in input_names[0]:
+    for idx, i in input_names:
+        if '*' in i:
          # If the shell is dumb (powershell/cmd.exe), glob input files ourselves
-        from glob import glob
-        input_names = glob(input_names[0])
+
+            input_names[idx:idx + 1] = glob(i)
     mols = [molecule.from_cml(i) for i in input_names]
+    for i in mols:
+        canonicalise(i)
+    # Clean up the molecule names for pretty-printing
     mol_names = [path.splitext(path.split(i)[1])[0] for i in input_names]
+
     writer = csv.writer(args.output_name)
-    backbone, b_t_m = mols[0].copy_without_H()
-    important_torsions = [[b_t_m[at] for at in it] for it in backbone.all_torsions()]
-    tc_angles = prepare_angles(important_torsions, mols, args.allow_inversion)
-    to_cluster = numpy.array([[i for i in chain(*[(math.sin(angle), math.cos(angle)) for angle in mol])]
-                    for mol in tc_angles])
     if args.use_hierachical_clustering:
         cluster = cluster_hierarchy
     else:
         cluster = cluster_kmeans
     # Validate input
-    if len(set([len(i) for i in to_cluster])) != 1:
+    if len(set([len(i.atoms) for i in mols])) != 1:
         raise ValueError, 'Not all molecules to be analysed have the same number of atoms. Please retry with conformers of only one molecule'
-    if (not args.nocluster) and len(mol_names) > 3 and (not cluster_available):
-        warnings.warn('scipy.cluster could not be imported. Continuing without clustering', RuntimeWarning)
-    if (not args.nocluster) and len(mol_names) <= 3 :
-        warnings.warn('More than 3 conformers are needed to cluster. Continuing without clustering', RuntimeWarning)
-    if args.reference_names:
-        best_fit_wrapper(args.reference_names, mols, mol_names, writer)
-    if (not args.nocluster) and len(mol_names) > 3 and cluster_available:
-        if args.k < 0:
-            raise ValueError, 'Number of clusters (k) cannot be negative.'
-        elif args.k == 0:
-            clustering = ch_cluster(to_cluster, cluster)
-            # Output the quality of the clustering
-            ch_labels = ['k (number of clusters) ', 'Calinski-Harabasz Criterion']
-            ch_data = [j for j in enumerate([i[0] for i in clustering], 2)]
-            show_ch_info(ch_labels, ch_data, writer)
-            ordering, sc_centers = choose_best_clustering(ch_data, clustering)
+    if args.rmsd_arrange not in ['t', 'b', 'i']:
+        raise ValueError, 'RMSD arrangement must be by [t]orsion clustering, [b]ounding box clustering, or conformer [i]d'
+    if (not cluster_available) and (args.k_torsional or args.k_bounding):
+        warnings.warn('Scipy not detected. Will not perform clustering')
+    if (len(mol_names) <=3) and (args.k_torsional or args.k_bounding):
+        warnings.warn('Not enough conformers to perform clustering')
+    if args.rmsd_arrange and args.no_rmsd:
+        warnings.warn('Instructions on how to arrange rmsd will be ignored because rmsds are not calculated', RuntimeWarning)
+    if (args.rmsd_arrange == 't') and ((args.k_torsional == 0) or (not cluster_available) or (len(mol_names) <= 3)):
+        raise ValueError, 'Cannot arrange conformers by torsion clustering if torsion clustering is not performed'
+    if args.rmsd_arrange == 'b' and args.k_bounding == 0:
+        raise ValueError, 'Cannot arrange conformers by bounding-box clustering if bounding-box clustering is not performed'
+    # Do the clustering
+    clustering_results = [mol_names]
+    clustering_headings = ['Conformer name']
+    # Torsional clustering
+    if args.k_torsional != 0 and len(mol_names) > 3 and cluster_available:
+        backbone, b_t_m = mols[0].copy_without_H()
+        important_torsions = [[b_t_m[at] for at in it] for it in backbone.all_torsions()]
+        important_angles = prepare_angles(important_torsions, mols, args.allow_inversion)
+        tc_angles = numpy.array([[i for i in chain(*[(math.sin(angle), math.cos(angle)) for angle in mol])]
+                                 for mol in important_angles])
+        if args.k_torsional > 0:
+            writer.writerow(['Finding %d torsional clusters' %args.k_torsional])
+            t_ordering, tmp1, tmp2, t_distances = cluster(tc_angles, args.k_torsional)
         else:
-            ordering, sc_centers = cluster(to_cluster, args.k)
-        rad_centers = [[math.atan2(s, c) for s,c in zip(each_center[::2], each_center[1::2])]for each_center in sc_centers]
-        # Write the clustering to the output
-        ordering_tmp = [i for i in enumerate(ordering)]
-        ordering_tmp.sort(key = lambda x: x[1])
-        ordering_to_print = [[j[0] for j in i[1]] for i in groupby(ordering_tmp, key = lambda x: x[1])]
-        # Make a pretty picture of the clusters
-        if matplotlib_available:
-            confs = [[tc_angles[i] for i in j]for j in ordering_to_print]
-            parallel_coordinates(confs, rad_centers, ['-'.join([str(molecule.py_to_id(j)) for j in i]) for i in important_torsions])
-        write_cluster_info(writer, ordering_to_print, rad_centers, important_torsions)
-        mol_names = arrange_by_clustering(mol_names, ordering)
-        mols = arrange_by_clustering(mols, ordering)
-    else: #Use different parallel coordinates
-        nocluster_parallel_coordinates(tc_angles, ['-'.join([str(molecule.py_to_id(j)) for j in i]) for i in important_torsions])
-    writer.writerow(['RMSD matrix'])
-    rmsds = all_the_rmsds(mols, allow_inversion=args.allow_inversion)
-    if matplotlib_available:
-        greyscale_visualisation(rmsds)
-    writer.writerow(['Conformers'] + mol_names)
-    for i, j in zip(mol_names, rmsds):
-        writer.writerow([i] + j)
-    #Use the rmsds to list the unique conformers
-    writer.writerow(['Unique conformers'])
-    for idx, rmsd_list in enumerate(rmsds):
-        maybe_unique = rmsd_list[:idx]
-        if len(maybe_unique) == 0 or min(maybe_unique) > args.uniqueness_cutoff:
-            writer.writerow([mol_names[idx]])
+            writer.writerow(['Finding quailty of torsional clustering'])
+            t_clustering = ch_cluster(tc_angles, cluster)
+            # Output the quality of the clustering
+            ch_labels = ['k_torsional', 'Calinski-Harabasz Criterion']
+            writer.writerows([j for j in enumerate([i[0] for i in t_clustering], 2)])
+            t_ordering, t_distances = choose_best_clustering(t_clustering)
+        clustering_headings.extend(['Torsional cluster id','Distance from torsional cluster center'] + ['-'.join([str(j + 1)for j in i]) for i in important_torsions])
+        clustering_results.extend([t_ordering, t_distances])
+        for i in range(len(important_torsions)):
+            clustering_results.append([math.degrees(j[i]) for j in important_angles])
+    # Bonding-box clustering
+    if args.k_bounding != 0 and len(mol_names) > 3 and cluster_available:
+        tc_bbox = numpy.array([find_bbox(i) for i in mols])
+        if args.k_bounding > 0:
+            writer.writerow(['Finding %d bounding-box clusters' %args.k_bounding])
+            b_ordering, tmp1, tmp2, b_distances = cluster(tc_bbox, args.k_bounding)
+        else:
+            writer.writerow(['Finding quailty of bounding-box clustering'])
+            b_clustering = ch_cluster(tc_bbox, cluster)
+            # Output the quality of the clustering
+            ch_labels = ['k_bounding-box', 'Calinski-Harabasz Criterion']
+            writer.writerows([j for j in enumerate([i[0] for i in b_clustering], 2)])
+            b_ordering, b_distances = choose_best_clustering(b_clustering)
+        clustering_headings.extend(['Bounding-box cluster id','Distance from bounding-box cluster center', 'Tertiary axis of inertia', 'Secondary axis of inertia', 'Primary axis of inertia'])
+        clustering_results.extend([b_ordering, b_distances, tc_bbox[:,0], tc_bbox[:,1], tc_bbox[:,2]])
+    if len(clustering_headings) > 1:
+        writer.writerow(clustering_headings)
+        writer.writerows([i for i in zip(*clustering_results)])
+    # Calculate the RMSD matrix and perform filtering if desired
+    if not args.no_rmsd:
+        writer.writerow(['RMSD matrix'])
+        if args.rmsd_arrange == 't':
+            reorder(mols, t_ordering)
+        if args.rmsd_arrange == 'b':
+            reorder(mols, b_ordering)
+        rmsds = all_the_rmsds(mols, allow_inversion=args.allow_inversion)
+        writer.writerow(['Conformers'] + mol_names)
+        for i, j in zip(mol_names, rmsds):
+            writer.writerow([i] + j)
+        #Use the rmsds to list the unique conformers
+        writer.writerow(['Unique conformers'])
+        accepted_ids = []
+        for idx, rmsd_list in enumerate(rmsds):
+            maybe_unique = [i for idx, i in enumerate(rmsd_list[:idx]) if idx in accepted_ids]
+            if len(maybe_unique) == 0 or min(maybe_unique) > args.uniqueness_cutoff:
+                writer.writerow([mol_names[idx]])
+                accepted_ids.append(idx)
+    # Visualise things
+    if matplotlib_available and not args.automatic:
+        if not args.no_rmsd:
+            greyscale_visualisation(rmsds)
+        if matplotlib_available and args.k_torsional:
+            parallel_coordinates(important_angles, ['-'.join([str(j + 1)for j in i]) for i in important_torsions], t_ordering, args.allow_inversion)
+        if matplotlib_available and args.k_bounding:
+            bbox_scatter(tc_bbox, b_ordering)
