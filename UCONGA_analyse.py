@@ -22,9 +22,6 @@ import warnings
 from os import path
 # Molecule preparation functions
 
-
-mass = {'H':1.007825,'C':12.000000,'N':14.003074,'O':15.994914,'Fe':55.934936, 'Al':26.982, 'Si':28.085, 'P':30.973761998, 'S':32.06, 'F':18.998403163, 'Cl':35.45, 'Br':79.904, 'I':126.90447, 'Cr':51.996}
-
 def canonicalise(mol):
     rb = UCONGA.find_rotatable_bonds(mol)
     centralness = [sum(i) for i in mol.distances]
@@ -106,7 +103,7 @@ def align_inertial(mol):
     
     Returns nothing, it modifies the molecule in-place
     '''
-    c_weights = numpy.array([[mass[constants.periodic_list[i.num]]]for i in mol.atoms])
+    c_weights = numpy.array([[constant.periodic_table[constants.periodic_list[i.num]]['mass']]for i in mol.atoms])
     r_weights = c_weights.T[0]
     c_coords = mol.coord_matrix()
     #centre on the COM
