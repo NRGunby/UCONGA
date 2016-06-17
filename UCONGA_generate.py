@@ -4,6 +4,7 @@ import ring_lib
 import numpy
 import bisect
 import warnings
+from itertools import chain, cycle, product
 linear_tolerance = radians(170)
 
 
@@ -215,7 +216,7 @@ def find_max_angles(rotatable_bonds, centralness, backbone, classes, allow_inver
         maxes.append(max)
     return maxes
 
-def make_all_rotations(mol, final_delta, scaling, allow_inversion, fix=[], vary_rings = 1):
+def make_all_rotations(mol, final_delta, scaling, allow_inversion, fix=[], vary_rings = 2):
     '''
     A generator that yields all valid rotamers of a molecule
     Scaling is a scaling factor as defined for test_pair and test_mol
@@ -297,6 +298,145 @@ def make_all_rotations(mol, final_delta, scaling, allow_inversion, fix=[], vary_
                             idx += 1
                 curr_delta /= 2
 
+### Divide-and-conquer functions
+def divide_linear(mol, split):
+    # Start by splitting the molecule into groups by breaking the bonds
+    repair = []
+    for each_pair in split:
+        i, j = each_pair
+        repair.append([i, j, mol.bonds[i][j]])
+        mol.bonds[i][j] = 0
+        mol.bonds[j][i] = 0
+        mol.update()
+    # Now find the subgroups
+    group_ids = set([tuple(sorted([i] + mol.atoms[i].all_neighbours_away_from())) for i in chain(*split)])
+    # Repair the main mol
+    for i in repair:
+        mol.bonds[i[0]][i[1]] = i[2]
+        mol.bonds[i[1]][i[0]] = i[2]
+        mol.update()
+    return group_ids
+
+def divide_natural(mol, split):
+    rbs = [i[1:3] for i in find_rotatable_bonds(mol)]
+    if len(rbs) <= 5: # Dont't need to split
+        return [range(len(mol.atoms))]
+    rb_id_groups = []
+    while rbs:
+        q = [rbs.pop()]
+        new_group = []
+        while q:
+            working = q.pop()
+            rems = [j for j in rbs if working[0] in j or working [1] in j]
+            q.extend(rems)
+            for i in rems:
+                rbs.remove(i)
+            new_group.append(working)
+        # If the new group is too big, try to split it up
+        if len(new_group) > 5:
+            tmp = []
+            for each_split in new_group:
+                g1 = []
+                g2 = []
+                for each_bond in new_group:
+                    if each_bond == each_split:
+                        pass
+                    elif sum([mol.distances[i][each_split[0]] for i in each_bond]) < sum([mol.distances[i][each_split[1]] for i in each_bond]):
+                        g1.append(each_bond)
+                    else:
+                        g2.append(each_bond)
+                tmp.append((abs(len(g1) - len(g2)), g1, g2))
+            tmp.sort()
+            rb_id_groups.append(tmp[0][1])
+            rb_id_groups.append(tmp[0][2])
+        else:
+            rb_id_groups.append(new_group)
+    # Now we have the groups of bonds, find the atoms not in rotatable bonds in their groups
+    # Rigid linkers between two groups will be double-counted; This is intentional, and should
+    # Reduce the number of group conformers produced
+    rotatable_sets = [set(chain(*g)) for g in rb_id_groups]
+    group_ids = []
+    for each_idx, each_rotatable_set in enumerate(rotatable_sets):
+        # Don't alter the original set - we'll want to reference it later
+        each_tmp = [i for i in each_rotatable_set]
+        # Find all the atoms that are part of other rotatable bonds
+        other_sets = set([i for i in chain(*(rotatable_sets[:each_idx] + rotatable_sets[each_idx + 1:]))])
+        # Walk through the set that we can alter, finding all neighbouring atoms not part of another rotatable bond
+        working_idx = 0
+        while working_idx < len(each_tmp):
+            curr_atom = mol.atoms[each_tmp[working_idx]]
+            neighbour_ids = [i for i in curr_atom.get_bond_ids() if i not in other_sets]
+            each_tmp.extend([i for i in neighbour_ids if i not in each_tmp])
+            working_idx += 1
+        group_ids.append(each_tmp)
+    return [list(i) for i in group_ids]
+
+#Return the return lists
+def recombine(base_mol, group_conformers, subset_rotatable, subset_to_mol):
+    count = 1
+    for each_set in product(*group_conformers):
+        count += 1
+        rbs = []
+        nvs = []
+        # Read off the rotatable bonds from each element
+        for each_mol, each_bonds, each_trans in zip(each_set, subset_rotatable, subset_to_mol):
+            to_make = {tuple([each_trans[j] for j in i]):each_mol.get_torsion(*i) for i in each_bonds}
+            rbs += to_make.keys()
+            nvs += to_make.values()
+        # combine them into a base conformer
+        recombined_mol = make_rotamer(base_mol, rbs, nvs)
+        yield recombined_mol
+
+def divide_and_conquer(mol, final_detla, scaling, allow_inversion, split = [], vary_rings = 1):
+    if not split:
+        group_ids = divide_natural(mol, split)
+    else:
+        group_ids = divide_linear(mol, split)
+    group_mols = [mol.copy_subset(i) for i in group_ids]
+    mol_to_subset = [{q: i.index(q) for q in range(len(mol.atoms)) if q in i} for i in group_ids]
+    subset_to_mol = [{v:k for k, v in i.items()} for i in mol_to_subset]
+    # Cap broken bonds with dummy atoms to guarantee that rotatable bonds stay rotatable
+    for each_group, each_mts, each_stm in zip(group_mols, mol_to_subset, subset_to_mol):
+        tmp = [i for i in each_group.atoms]
+        for each_subgroup_atom in tmp:
+            each_mol_atom = mol.atoms[each_stm[each_subgroup_atom.get_id()]]
+            if len(each_mol_atom.get_bond_ids()) > len(each_subgroup_atom.get_bond_ids()):
+                missing_neighbour = [ i for i in each_mol_atom.get_bond_ids() if i not in each_mts]
+                for each_missing_id in missing_neighbour:
+                    each_group.add_atom(atom.atom(0, *mol.atoms[each_missing_id].coords))
+                    each_group.add_bond(each_subgroup_atom.get_id(), len(each_group.atoms) - 1, 1)
+                    each_mts[each_missing_id] = len(each_group.atoms) - 1
+                    each_stm[len(each_group.atoms) - 1] = each_missing_id
+    # Make a list of bonds that will be rotated around in the subgroups
+    # Also mark bonds in subgroups that are in rings in the base mol as unrotatable
+    mol_fix = []
+    sub_fix = []
+    sub_rotated = []
+    for each_submol, each_sub_to_mol in zip(group_mols, subset_to_mol):
+        each_sub_fix = []
+        each_sub_rotated = []
+        for each_rotatable_bond in find_rotatable_bonds(each_submol):
+            full_mol_bond = [each_sub_to_mol[i] for i in each_rotatable_bond]
+            if mol.is_in_ring(full_mol_bond[1], full_mol_bond[2]):
+                each_sub_fix.append(each_rotatable_bond[1:3])
+            else:
+                mol_fix.append(full_mol_bond[1:3])
+                each_sub_rotated.append(each_rotatable_bond)
+        sub_fix.append(each_sub_fix)
+        sub_rotated.append(each_sub_rotated)
+    # Make the conformer ensembles for each section of the molecule
+    group_conformers = []
+    for each_subset, each_fix in zip(group_mols, sub_fix):
+        base_ensemble = [q for q in make_all_rotations(each_subset, final_detla, scaling, allow_inversion, each_fix, False)]
+        group_conformers.append(base_ensemble)
+        allow_inversion = False # Only the first subgroup should have its first bond restricted
+    # Recombine
+    for recombined_mol in recombine(mol, group_conformers, sub_rotated, subset_to_mol):
+        count = 0
+        for each_conformer in make_all_rotations(recombined_mol, final_detla, scaling, allow_inversion, mol_fix, vary_rings):
+            count += 1
+            yield each_conformer
+
 
 if __name__ == '__main__':
     import argparse
@@ -320,6 +460,10 @@ if __name__ == '__main__':
     o_help = 'Base name for the output files. Must contain a * which will be replaced '
     o_help += 'by the conformer number. Default = Conformer_*_${Input_name}'
     i_help = 'Ignore stereochemistry (treat enantiomeric conformers as identical).'
+    r_help = 'Amount of ring conformers to generate (0=> hold rings fixed, 1 => reflect rings, 2=> full flip-of-fragments)'
+    r_help += 'Default = 1 with divide-and-conquer and 2 without'
+    a_help = 'Avoid using divide-and-conquer even when the molecule has more than 5 rotatable bonds (by default, the divide-and-conquer algoriothm is used for molecules with more than 5 rotatable bonds.)'
+    b_help = 'Two atomic IDs (1-indexed) defining a bond to be broken for divide-and-conquer. This is ignored if -a is specified. Can be repeated. If unspecified, the molecule is broken at all multiple bonds and rings.'
     parser = argparse.ArgumentParser(description=description,
                             formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('-s', '--scaling', help=scaling_help, type=float,
@@ -328,8 +472,13 @@ if __name__ == '__main__':
     parser.add_argument('-i', '--allow_inversion', help=i_help, action='store_true')
     parser.add_argument('-o', '--output_name', help=o_help)
     parser.add_argument('-f', '--output_format', help=f_help, default='cml')
+    parser.add_argument('-r', '--ring_generation', help=r_help, default=-1, type=int)
+    parser.add_argument('-a', '--avoid_division', help=a_help, action='store_true')
+    parser.add_argument('-b', '--break_at', help=b_help, action='append', type=int, nargs=2)
     parser.add_argument('file_name', help='cml file containing the molecule')
     args = parser.parse_args()
+    vary_rings = argv.ring_generation
+    fix_or_split = []
     try:
         mol = molecule.from_cml(args.file_name)
     except:
@@ -352,9 +501,20 @@ if __name__ == '__main__':
         raise(ValueError, "No wildcard in output file namer")
     if args.scaling < 0 or args.scaling > 1:
         raise(ValueError, "van der Waals scaling factor not in 0<s<1)")
-    for idx, each_conformer in enumerate(make_all_rotations(mol, args.delta,
+    if len(find_rotatable_bonds(mol)) > 5 and not args.avoid_division:
+        conf_gen_func = make_all_rotations
+        if vary_rings == -1:
+            vary_rings = 2
+    else:
+        conf_gen_func = divide_and_conquer
+        if vary_rings == -1:
+            vary_rings = 1
+        fix_or_split = [[i - 1 for i in pair]for pair in args.break_at]
+    for idx, each_conformer in enumerate(conf_gen_func(mol, args.delta,
                                                             args.scaling,
-                                                            args.allow_inversion),
+                                                            args.allow_inversion,
+                                                            fix_or_split,
+                                                            vary_rings),
                                          1):
         with open(base_file_name.format(idx), 'w') as out_file:
             if args.output_format == 'cml':
