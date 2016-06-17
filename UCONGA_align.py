@@ -53,13 +53,13 @@ if __name__ == '__main__':
     mols = [molecule.from_cml(i) for i in input_names]
     ref_mol = molecule.from_cml(args.ref_file)
     ref_num_atoms = len(ref_mol.atoms)
-    for each_id in args.center_id:
-        if not (0 <= each_id < ref_num_atoms):
-            raise ValueError, 'The atom id to align molecules at must be a valid atom id for the molecule, i.e. an integer between between 1 and %d inclusive.' %ref_num_atoms
     if args.center_id:
         center_ids = [i - 1 for i in args.center_id]
     else:
         center_ids = [i.get_id() for i in ref_mol.atoms if i.num > 1]
+    for each_id in center_ids:
+        if not (0 <= each_id < ref_num_atoms):
+            raise ValueError, 'The atom id to align molecules at must be a valid atom id for the molecule, i.e. an integer between between 1 and %d inclusive.' %ref_num_atoms
     for each_mol in mols:
         if len(each_mol.atoms) != ref_num_atoms:
             raise ValueError, 'Not all molecules to be aligned have the same number of atoms. Please retry with conformers of only one molecule'
