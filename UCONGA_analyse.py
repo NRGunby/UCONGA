@@ -4,7 +4,7 @@ from itertools import combinations_with_replacement, chain, groupby, compress
 from collections import Counter
 import molecule
 import constants
-import UCONGA
+import UCONGA_generate as UCONGA
 matplotlib_available = False
 cluster_available = False
 try:
@@ -103,7 +103,7 @@ def align_inertial(mol):
     
     Returns nothing, it modifies the molecule in-place
     '''
-    c_weights = numpy.array([[constant.periodic_table[constants.periodic_list[i.num]]['mass']]for i in mol.atoms])
+    c_weights = numpy.array([[constants.periodic_table[constants.periodic_list[i.num]]['mass']]for i in mol.atoms])
     r_weights = c_weights.T[0]
     c_coords = mol.coord_matrix()
     #centre on the COM
@@ -345,8 +345,7 @@ def bbox_scatter(points, labs, ax=None):
 
 def parallel_coordinates(data, torsion_labels, categories, allow_inversion, ax=None):
     ax = ax if ax is not None else plt.gca()
-    #colors = plt.cm.Set3(numpy.linspace(0, 1, max(categories)+ 1 - min(categories)))
-    colors = [(0.7, 0.0, 0.0, 0.6), (0.0, 0.7, 0.0, 0.6)]
+    colors = plt.cm.Set3(numpy.linspace(0, 1, max(categories)+ 1 - min(categories)))
     ax.yaxis.set_ticks_position('left')
     ax.xaxis.set_ticks_position('bottom')
     ax.set_ylabel('Torsion angle value ($^\circ$)', size='x-large')

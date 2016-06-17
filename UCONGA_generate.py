@@ -5,6 +5,7 @@ import numpy
 import bisect
 import warnings
 from itertools import chain, cycle, product
+import atom
 linear_tolerance = radians(170)
 
 
@@ -225,6 +226,7 @@ def make_all_rotations(mol, final_delta, scaling, allow_inversion, fix=[], vary_
     Vary_rings can be 0 (hold all rings constant), 1 (reflect only), or 2 (full flip-of-fragments) (important for divide-and-conquer, may be useful for custom work)
     '''
     backbone, backbone_to_mol = mol.copy_without_H()
+    mol_to_backbone = {v:k for k, v in backbone_to_mol.items()}
     rotatable_bonds = find_rotatable_bonds(backbone)
     for each_bond in fix:
         backbone_each_bond = sorted([mol_to_backbone[i] for i in each_bond])
@@ -477,7 +479,7 @@ if __name__ == '__main__':
     parser.add_argument('-b', '--break_at', help=b_help, action='append', type=int, nargs=2)
     parser.add_argument('file_name', help='cml file containing the molecule')
     args = parser.parse_args()
-    vary_rings = argv.ring_generation
+    vary_rings = args.ring_generation
     fix_or_split = []
     try:
         mol = molecule.from_cml(args.file_name)
@@ -501,7 +503,7 @@ if __name__ == '__main__':
         raise(ValueError, "No wildcard in output file namer")
     if args.scaling < 0 or args.scaling > 1:
         raise(ValueError, "van der Waals scaling factor not in 0<s<1)")
-    if len(find_rotatable_bonds(mol)) > 5 and not args.avoid_division:
+    if len(find_rotatable_bonds(mol)) < 5 or args.avoid_division:
         conf_gen_func = make_all_rotations
         if vary_rings == -1:
             vary_rings = 2
@@ -509,7 +511,8 @@ if __name__ == '__main__':
         conf_gen_func = divide_and_conquer
         if vary_rings == -1:
             vary_rings = 1
-        fix_or_split = [[i - 1 for i in pair]for pair in args.break_at]
+        if args.break_at:
+            fix_or_split = [[i - 1 for i in pair]for pair in args.break_at]
     for idx, each_conformer in enumerate(conf_gen_func(mol, args.delta,
                                                             args.scaling,
                                                             args.allow_inversion,
