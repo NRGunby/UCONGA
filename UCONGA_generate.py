@@ -1,9 +1,10 @@
-from math import radians, degrees
+from math import radians, degrees, sin, cos
 import molecule
 import ring_lib
 import numpy
 import bisect
 import warnings
+linear_tolerance = radians(170)
 
 
 def test_pair(pair, scaling):
@@ -25,12 +26,26 @@ def test_pair(pair, scaling):
 
 def test_mol(mol, scaling):
     '''
-        Test whether any >1,4 neighbours in an molecule are too close together
-        Too close is defined as it is for test_pair
-        '''
+    Test whether any >1,4 neighbours in an molecule are too close together
+    Too close is defined as it is for test_pair
+    Return True if the conformer is OK and False if it is not
+    '''
     for each_pair in mol.all_pairs():
         atom_pair = [mol.atoms[each] for each in each_pair]
-        if not mol.is_in_ring(*each_pair) and test_pair(atom_pair, scaling) is False:
+        # Test if the distance between the pair can be changed by rotation
+        direct_path = []
+        working_atom = atom_pair[0]
+        end_id = each_pair[1]
+        neighbour_id = sorted(working_atom.get_bond_ids(), key = lambda x: mol.distances[end_id][x])[0]
+        while neighbour_id != end_id:
+            direct_path.append(neighbour_id)
+            working_atom = mol.atoms[neighbour_id]
+            neighbour_id = sorted(working_atom.get_bond_ids(), key = lambda x: mol.distances[end_id][x])[0]
+        can_change = True
+        for each_bond in zip(direct_path[:-1], direct_path[1:]):
+            if not test_rotatable(*[mol.atoms[i] for i in each_bond]):
+                can_change = False
+        if can_change and test_pair(atom_pair, scaling) is False:
             return False
     else: # Not technically necessary but clearer
         return True
@@ -65,13 +80,13 @@ def test_interesting(atom_1, atom_2):
     '''
     ats = [atom_1, atom_2]
     this_mol = atom_1.mol
-    heavy_neighbours = [[j for j in each.search_away_from(other.get_id()) if this_mol.atoms[j].num > 1]
+    heavy_neighbours = [[j for j in each.search_away_from(other.get_id()) if this_mol.atoms[j].num != 1]
                         for each, other in zip(ats, ats[::-1])]
     # Do both ends have heavy neighbours?
     if 0 in [len(i) for i in heavy_neighbours]:
         return False
     # Is either end nearly linear?
-    elif True in [len(i) == 1 and abs(this_mol.get_angle(each.get_id(), i[0], other.get_id())) > radians(170)
+    elif True in [len(i) == 1 and abs(this_mol.get_angle(each.get_id(), i[0], other.get_id())) > linear_tolerance
                   for i, each, other in zip(heavy_neighbours, ats, ats[::-1])]:
         return False
     else:
@@ -118,6 +133,54 @@ def make_rotamer(mol, rotatable_bonds, new_values):
                                  each_torsion[2], each_torsion[3], each_value)
     return new_rotamer
 
+def is_symmetrical_rotor(each_bond, backbone, classes):
+    '''
+    For an atom to be a symmetrical rotor, all children must be in the same symmetry class
+    All children must be childless or in a ring rith the atom
+    All children must be equidistant in a Newmann pprojection
+    '''
+    C_children = backbone.atoms[each_bond[2]].search_away_from(each_bond[1])
+    sym_rotor = False
+    if len(C_children) > 1 and len(set([classes[i] for i in C_children])) == 1 and backbone.atoms[C_children[0]].num > 0:
+        all_D_children = backbone.atoms[each_bond[3]].get_bond_ids()
+        if len(all_D_children) == 1 or False not in [backbone.is_in_ring(i, each_bond[3]) for i in all_D_children]:
+            sym_rotor = True
+            # For a n-sided regular polygon inscribed in a unit circle, for any vertex
+            # the product of the distances to all other vertices is n
+            # Convert to torsion angles to put everything on the unit circle
+            C_child_torsions = [backbone.get_torsion(each_bond[0], each_bond[1], each_bond[2], i)
+                                for i in C_children]
+            C_child_coords = [numpy.array([sin(i), cos(i)]) for i in C_child_torsions]
+            upper_limit = len(C_child_coords) * 1.1
+            lower_limit = len(C_child_coords) * 0.9
+            for i in C_child_coords:
+                base_dist = 1
+                for j in C_child_coords:
+                    tmp = numpy.linalg.norm(i - j)
+                    if tmp != 0:
+                        base_dist *= numpy.linalg.norm(i - j)
+                if base_dist < lower_limit or base_dist > upper_limit:
+                    sym_rotor = False
+    return sym_rotor
+
+
+def find_older_sibling_ids(each_bond, each_id, backbone, classes, bonds_by_B_atom = {}):
+    '''
+    Checks if a bond is part of a group of identical bonds
+    and returns the ids of all identical bonds with lower ids
+    '''
+    ret = []
+    if each_bond[1] in bonds_by_B_atom:
+        sym_classes = [classes[i] for i in each_bond]
+        related_bonds = filter(lambda x: [classes[i] for i in x[1]] == sym_classes,
+                               bonds_by_B_atom[each_bond[1]])
+        ret.extend([str(i[0]) for i in related_bonds])
+    try:
+        bonds_by_B_atom[each_bond[1]].append((each_id, each_bond))
+    except KeyError:
+        bonds_by_B_atom[each_bond[1]] = [(each_id, each_bond)]
+    return ret
+
 
 def find_max_angles(rotatable_bonds, centralness, backbone, classes, allow_inversion):
     '''
@@ -132,46 +195,46 @@ def find_max_angles(rotatable_bonds, centralness, backbone, classes, allow_inver
         immediately before it in the group
     This avoids generating any equivalent/degenerate conformers
     '''
+    # Variable names are based on torsions being (centre out) A-B-C-D
     maxes = []
-    bonds_by_B_atom = {}
+    # For each subunit in divide-and-conquer, we need a new dict
+    curr_dict = {}
     for idx, each_bond in enumerate(rotatable_bonds):
         max = []
+        # Make sure the bond is going from the centre to the periphery
         if centralness[each_bond[0]] > centralness[each_bond[-1]]:
             each_bond = each_bond[::-1]
         C_children = backbone.atoms[each_bond[2]].search_away_from(each_bond[1])
-        if each_bond[1] in bonds_by_B_atom:
-            sym_classes = [classes[i] for i in each_bond]
-            related_bonds = filter(lambda x: [classes[i] for i in rotatable_bonds[x]] == sym_classes,
-                                   bonds_by_B_atom[each_bond[1]])
-            max.extend([str(i) for i in related_bonds])
-            bonds_by_B_atom[each_bond[1]].append(idx)
-        else:
-            bonds_by_B_atom[each_bond[1]] = [idx]
-        if len(C_children) > 1 and len(set([classes[i] for i in C_children])) == 1:
-            C_child_torsions = [backbone.get_torsion(each_bond[0], each_bond[1], each_bond[2], i)
-                                for i in C_children]
-            C_child_torsions.sort()
-            diffs = [int(degrees(j - i)) for i, j in zip(C_child_torsions[:-1], C_child_torsions[1:])]
-            # Probably need some sort of rounding thing here
-            if len(set(diffs)) == 1:
-                max.append(360/len(C_children))
+        max.extend(find_older_sibling_ids(each_bond, idx, backbone, classes, curr_dict))
+        if is_symmetrical_rotor(each_bond, backbone, classes):
+            max.append(360/len(C_children))
         if not max:
             max.append(360)
         if len(maxes) == 0 and allow_inversion:
-            max = [i/2 for i in max if type(i) != str]
+            max = [i/2 if type(i) != str else i for i in max]
         maxes.append(max)
     return maxes
 
-def make_all_rotations(mol, final_delta, scaling, allow_inversion):
+def make_all_rotations(mol, final_delta, scaling, allow_inversion, fix=[], vary_rings = 1):
     '''
     A generator that yields all valid rotamers of a molecule
     Scaling is a scaling factor as defined for test_pair and test_mol
     Delta is the amount (in degrees) to increment torsions by in-between trials
+    Fix is a list of bonds to hold constant (important for divide-and-conquer, may be useful for custom work)
+    Vary_rings can be 0 (hold all rings constant), 1 (reflect only), or 2 (full flip-of-fragments) (important for divide-and-conquer, may be useful for custom work)
     '''
     backbone, backbone_to_mol = mol.copy_without_H()
     rotatable_bonds = find_rotatable_bonds(backbone)
-    mol_rotatable_bonds = [[backbone_to_mol[i] for i in each]
-                           for each in rotatable_bonds]
+    for each_bond in fix:
+        backbone_each_bond = sorted([mol_to_backbone[i] for i in each_bond])
+        keep_looping = True
+        while keep_looping:
+            for i in rotatable_bonds:
+                if sorted(i[1:3]) == backbone_each_bond:
+                    rotatable_bonds.remove(i)
+                    break
+            else:
+                keep_looping = False
     # Sort bonds by centralness
     centralness = [sum(i) for i in backbone.distances]
     classes = backbone.get_morgan_equivalencies()
@@ -183,7 +246,7 @@ def make_all_rotations(mol, final_delta, scaling, allow_inversion):
     maxes = find_max_angles(rotatable_bonds, centralness, backbone, classes, allow_inversion)
     curr_delta = 60
     max_idx = len(rotatable_bonds) - 1
-    for each_set_of_rings in ring_lib.all_ring_conformers(mol):
+    for each_set_of_rings in ring_lib.all_ring_conformers(mol, vary_rings):
         if max_idx < 0:
             if test_mol(each_set_of_rings, scaling):
                 yield each_set_of_rings
