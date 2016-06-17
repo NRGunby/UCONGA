@@ -1,6 +1,6 @@
 import numpy
 import math
-from itertools import combinations_with_replacement, chain, groupby, count, compress, cycle
+from itertools import combinations_with_replacement, chain, groupby, compress
 from collections import Counter
 import molecule
 import constants
@@ -35,7 +35,7 @@ def canonicalise(mol):
             each_bond = each_bond[::-1]
         if UCONGA.is_symmetrical_rotor(each_bond, mol, classes):
             sym_degree = float(len(mol.atoms[each_bond[2]].search_away_from(each_bond[1])))
-            increment = 2*pi/sym_degree
+            increment = 2*math.pi/sym_degree
             each_torsion = mol.get_torsion(*each_bond)
             while each_torsion > increment:
                 each_torsion -= increment
@@ -469,7 +469,7 @@ if __name__ == '__main__':
     # Prepare input
     args = parser.parse_args()
     input_names = args.input_files
-    for idx, i in input_names:
+    for idx, i in enumerate(input_names):
         if '*' in i:
          # If the shell is dumb (powershell/cmd.exe), glob input files ourselves
 

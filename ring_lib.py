@@ -2,7 +2,6 @@ import linalg
 import numpy
 from itertools import chain
 import warnings
-import mol_tree
 from scipy.optimize import leastsq
 from math import degrees
 
@@ -88,7 +87,7 @@ def find_ring_conformers(base_mol, each_ring_system, full_flip=2):
     elif full_flip == 1:
         ret = [base_mol.copy(), flip_ring(base_mol, each_ring_system)]
     else:
-        ret = [base_mol.copy()
+        ret = [base_mol.copy()]
     return ret
 
 
