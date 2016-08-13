@@ -14,6 +14,14 @@ class molecule(object):
     Some of the design is inspired by OpenBabel's OBMol
     '''
     def __init__(self, atoms, bonds=False):
+        '''
+        Creates a molecule object
+        Accepts:
+            A list of atoms
+            Optionally: A bond array, where the ijth entry is the bond order between atoms i and j
+        Returns:
+            A molecule object
+        '''
         self.atoms = atoms
         self.aromatised_bonds = []
         for at in self.atoms:
@@ -41,14 +49,21 @@ class molecule(object):
     def is_valid_id(self, idx):
         '''
         Checks that something is the id of one of this molecule's atoms
-        May not be the most efficient way of coding this
-        Maybe this should be done using EAFP instead of LBYL
+        Accetps:
+            An id
+        Returns:
+            A boolean
         '''
         return idx >= 0 and idx < len(self.atoms) and isinstance(idx, (int, long))
 
     def add_atom(self, new_atom, done=True):
         '''
-        Adds an atom and rebuilds other arrays
+        Adds an atom
+        Accepts:
+            An atom object
+            Optional: A boolean representing whether to rebuild other arrays or not
+                      This defaults to True, but if many atoms are being added set to 
+                      False for all but the last to increase efficiency
         '''
         self.atoms.append(new_atom)
         new_atom.mol = self
@@ -63,7 +78,13 @@ class molecule(object):
 
     def add_bond(self, id1, id2, order, done=True):
         '''
-        Adds a bond and adjusts other arrays
+        Adds a bond
+        Accepts:
+            The int ids of the two atoms to bond
+            The int bond order
+            Optional: A boolean representing whether to rebuild other arrays or not
+                      This defaults to True, but if many atoms are being added set to 
+                      False for all but the last to increase efficiency
         '''
         if id1 == id2:
             raise(ValueError, 'Cannot bond an atom to itself')
@@ -78,7 +99,10 @@ class molecule(object):
                 self.update()
 
     def all_bonds(self):
-        '''Iterate over all bonds'''
+        '''
+        Iterate over all bonds
+        Yields pairs of atom ids
+        '''
         for idx_atom_1, idx_atom_2 in combinations(range(len(self.atoms)), 2):
             if self.bonds[idx_atom_1][idx_atom_2]:
                 yield idx_atom_1, idx_atom_2
@@ -86,12 +110,23 @@ class molecule(object):
     def get_bond_order(self, id1, id2):
         '''
         Returns the bond order (1, 2, etc) between two atoms
-        If they are not bonded, returns 0.
-        If they are part of an aromatic ring, returns 1.5.
+        If they are not bonded, returns 0
+        If they are part of an aromatic ring, returns 1.5
+        Accepts:
+            Two int atom ids
+        Returns:
+            An int
         '''
         return self.bonds[id1][id2]
     
     def get_angle(self, id_1, id_center, id_2):
+        '''
+        Returns the angle in radians defined by three atoms
+        Accepts:
+            Three atom ids, where the middle id is the center of the angle
+        Returns:
+            A float
+        '''
         atoms = [self.atoms[i] for i in id_1, id_center, id_2]
         a, b = [atoms[1].get_vector(i) for i in (atoms[0], atoms[2])]
         tmp = a.dot(b)/(numpy.linalg.norm(a)*numpy.linalg.norm(b))
@@ -109,7 +144,10 @@ class molecule(object):
         return numpy.array([i.coords for i in self.atoms])
 
     def all_torsions(self):
-        '''Iterate over all torsions'''
+        '''
+        Iterate over all torsions
+        Yields 4-tuples of atom ids
+        '''
         for middle in self.all_bonds():
             ends = [self.atoms[each].get_bond_ids() for each in middle]
             for each in ends:
@@ -122,14 +160,16 @@ class molecule(object):
                 yield tuple(caps)
 
     def all_pairs(self):
-        '''Iterate over all > 1-4 pairs'''
+        '''
+        Iterate over all nonbonded pairs
+        '''
         for idx_atom_1, idx_atom_2 in combinations(range(len(self.atoms)), 2):
             if self.distances[idx_atom_1][idx_atom_2] > 2:
                 yield idx_atom_1, idx_atom_2
 
     def build_distances(self):
         '''
-        Rebuilds the list of (graph-theoretical, not structural) distances
+        Rebuilds the list of (graph-theoretical, not structural) distances between atoms
         '''
         # Algorithm details:
         # This relies on taking consecutive powers of the adjacency matrix
@@ -220,6 +260,10 @@ class molecule(object):
     def is_in_ring(self, id1, id2):
         '''
         Checks if bond between two atoms with given ids is in a ring
+        Accepts:
+            Two atom ids
+        Returns:
+            A boolean
         '''
         for each_ring in self.rings:
             if id1 in each_ring and id2 in each_ring:
@@ -227,12 +271,18 @@ class molecule(object):
         return False
 
 # A collection of utility methods refactored out of get_morgan_equivalencies to save on length
+# These are all elated to nuclear permutational symmetry
 
     def follow_dbl_chain(self, id1):
         '''
         A utility for the other utilities
         Given an atom id, returns the other end of the double-bonded chain
         Designed for condensing allenes and other cumulenes
+        Accepts:
+            An atom id
+        Returns:
+            None if the atom called on is not the end of a double-bonded chain
+            An (atom id, chain length) tuple if the atom called is on the end
         '''
         len_chain = 1
         old_id = id1
@@ -266,7 +316,15 @@ class molecule(object):
 
     def find_dbl_systems(self, sym_classes):
         '''
-        Finds doubly-bonded systems with sensibly-defined stereochemistry
+        Finds doubly-bonded systems with defined stereochemistry
+        This excludes those with no stereochemistry, and those
+        where (due to one end being >2-coordinate) the stereochemistry is complicated
+        Accepts:
+            A list of the symmetry classes of each atom in the molecule
+        Yields:
+            4-tuples consisting of: the number of bonds in the chain, a list of the atom ids of the 
+                                   substituents of the ends of the chain, the id of one end of the 
+                                   chain, the id of the other end of the chain
         '''
         for each_idx_1, each_bond_list in enumerate(self.bonds):
             dc = self.follow_dbl_chain(each_idx_1)
@@ -277,7 +335,7 @@ class molecule(object):
                 lengths = [len(k) for k in ends]
                 if lengths[0] > 2 or lengths[1] > 2 or 0 in lengths:
                     # Either this is a carbonyl etc with no stereochemistry or
-                    # This is not an organic double bond as one end has
+                    # this is not an organic double bond as one end has
                     # too many substituents so
                     # Stereochemistry here is not well-definded
                     pass
@@ -289,8 +347,14 @@ class molecule(object):
     
     def assign_dbl_stereochem(self, sym_classes):
         '''
-        Assigns stereocehmistry to double-bond collections,
+        Finds and assigns stereocehmistry to double-bond collections,
         namely alkenes, allenes, and higher cumulenes.
+        Accepts:
+            A list of the symmetry classes of all atoms in the molecule
+            Returns: A list of the double-bond-group stereochemistry-type
+                     of all atoms in the molecule. This is 0 if there is no
+                     double-bond-group stereochemistry, and 1 or 2 arbritratily but
+                     consistently otherwise
         '''
         double_stereochemistry = [0 for i in self.atoms]
         for n_bonds_in_chain, ends, each_idx_1, each_idx_2 in self.find_dbl_systems(sym_classes):
@@ -498,7 +562,7 @@ class molecule(object):
 
     def get_morgan_equivalencies(self):
         '''
-        Modified Morgan algorithm for classifying atoms
+        Modified Morgan algorithm for classifying atoms by nuclear permutational symmetry
         Based on Moreau, Nouv. J. Chim., 1980, p 17
 
         My changes include:
@@ -506,14 +570,13 @@ class molecule(object):
         Modifying the double-bond step to include allenes and highere cumulenes
         Adding a step to check for parastereocentres
 
-        Known failiure modes:
-            Failiure to distinguish between isomers in cases of:
-                Axial chirality (e.g. DIPHOS)
-                Helical chirality (e.g. Fe(acac)3)
-                Octahedral diastereoisomerism (cis/trans and mer/fac)
-                Extended chirality (e.g. asymmetric tetrahedranes
-                                    and some fullerenes)
-                square-planar centres (cis/trans)
+        Unhandled edge-cases:
+            Axial chirality (e.g. DIPHOS)
+            Helical chirality (e.g. Fe(acac)3)
+            Octahedral diastereoisomerism (cis/trans and mer/fac)
+            Extended chirality (e.g. asymmetric tetrahedranes
+                                and some fullerenes)
+            square-planar centres (cis/trans)
         '''
         all_ids_neighbours = [each.get_bond_ids() for each in self.atoms]
         # Basic Morgan algorithm using extended connectivites
@@ -530,7 +593,7 @@ class molecule(object):
             init_ranks = [(r << 8) + a for r, a in
                           zip(new_ranks, atom_property)]
             new_ranks = rank_until_converged(init_ranks, all_ids_neighbours)
-        # Stereocehmistry hadnling uses methods, not lists
+        # Stereochemistry handling uses methods, not lists
         # So it needs a seperate loop.
         for stereochem_assigner in (self.assign_dbl_stereochem, self.assign_tet_stereochem,
                                     self.assign_para_stereochem):
@@ -633,12 +696,14 @@ class molecule(object):
 
     def copy_without_H(self):
         '''
-        Returns a copy of the molecule with stereochemically unimportant
-        hydrogen atoms removed and an old id -> new id translation table
-        A hydrogen is stereochemicall unimportant if it is a) not bridging and
+        Removes stereochemically unimportant hydrogen atoms.
+        A hydrogen is stereochemically unimportant if it is a) not bridging and
         b) not the only hydrogen attached to an atom
         The distinction between interesting and uninteresting hydrogens makes this seperate
         from copy_subset
+        Returns:
+            A molecule object
+            An old id -> new id translation table
         '''
         hless_new_atoms = []
         trans = [-1]*len(self.atoms)
