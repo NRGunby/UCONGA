@@ -326,9 +326,10 @@ def arrange_by_clustering(to_be_arranged, ordering):
 
 def bbox_scatter(points, labs, ax=None):
     ax = ax if ax is not None else plt.gca()
+    ax.set_title('Scatter plot of bounding-box clustering', size='x-large')
     ax.yaxis.set_ticks_position('left')
     ax.xaxis.set_ticks_position('bottom')
-    colors = plt.cm.Set3(numpy.linspace(0, 1, max(labs)+ 1 - min(labs)))
+    colors = plt.cm.Set1(numpy.linspace(0, 1, max(labs)+ 1 - min(labs)))
     percentiles = numpy.percentile(points, [75, 25], axis=0)
     iqrs = percentiles[0] - percentiles[1]
     labels = ( 'Tertiary axis of inertia ($\AA$)', 'Secondary axis of inertia ($\AA$)', 'Primary axis of inertia ($\AA$)')
@@ -345,7 +346,8 @@ def bbox_scatter(points, labs, ax=None):
 
 def parallel_coordinates(data, torsion_labels, categories, allow_inversion, ax=None):
     ax = ax if ax is not None else plt.gca()
-    colors = plt.cm.Set3(numpy.linspace(0, 1, max(categories)+ 1 - min(categories)))
+    ax.set_title('Parallel coordinates plot of torsional clustering', size='x-large')
+    colors = plt.cm.Set1(numpy.linspace(0, 1, max(categories)+ 1 - min(categories)))
     ax.yaxis.set_ticks_position('left')
     ax.xaxis.set_ticks_position('bottom')
     ax.set_ylabel('Torsion angle value ($^\circ$)', size='x-large')
@@ -403,6 +405,7 @@ def greyscale_visualisation(matrix, max_weight=None, ax=None, filename=None):
     2**ceiling(log2[max]) is used, where max is the largest entry in the matrix
     """
     ax = ax if ax is not None else plt.gca()
+    ax.set_title('Greyscale visualisation of the RMSD matrix', size='x-large')
     if not max_weight:
         max_weight = 2**numpy.ceil(numpy.log(numpy.abs(matrix).max())/numpy.log(2))
     i = ax.matshow(matrix, vmin=0, vmax=max_weight, cmap='Greys')
@@ -510,16 +513,16 @@ if __name__ == '__main__':
             writer.writerow(['Finding %d torsional clusters' %args.k_torsional])
             t_ordering, tmp1, tmp2, t_distances = cluster(tc_angles, args.k_torsional)
         else:
-            writer.writerow(['Finding quailty of torsional clustering'])
+            writer.writerow(['Finding torsional clusters with Calinski-Harabasz criterion'])
             t_clustering = ch_cluster(tc_angles, cluster)
             # Output the quality of the clustering
-            ch_labels = ['k_torsional', 'Calinski-Harabasz Criterion']
-            writer.writerows([j for j in enumerate([i[0] for i in t_clustering], 2)])
             t_ordering, t_distances = choose_best_clustering(t_clustering)
-        clustering_headings.extend(['Torsional cluster id','Distance from torsional cluster center'] + ['-'.join([str(j + 1)for j in i]) for i in important_torsions])
-        clustering_results.extend([t_ordering, t_distances])
+        tc_headings = clustering_headings + ['Torsional cluster id','Distance from torsional cluster center'] + ['-'.join([str(j + 1)for j in i]) for i in important_torsions]
+        writer.writerow(tc_headings)
+        tc_results = clustering_results + ([t_ordering, t_distances])
         for i in range(len(important_torsions)):
-            clustering_results.append([math.degrees(j[i]) for j in important_angles])
+            tc_results.append([math.degrees(j[i]) for j in important_angles])
+        writer.writerows([i for i in zip(*tc_results)])
     # Bonding-box clustering
     if args.k_bounding != 0 and len(mol_names) > 3 and cluster_available:
         tc_bbox = numpy.array([find_bbox(i) for i in mols])
@@ -527,17 +530,14 @@ if __name__ == '__main__':
             writer.writerow(['Finding %d bounding-box clusters' %args.k_bounding])
             b_ordering, tmp1, tmp2, b_distances = cluster(tc_bbox, args.k_bounding)
         else:
-            writer.writerow(['Finding quailty of bounding-box clustering'])
+            writer.writerow(['Finding bounding-box clusters with Calinski-Harabasz Criterion'])
             b_clustering = ch_cluster(tc_bbox, cluster)
             # Output the quality of the clustering
-            ch_labels = ['k_bounding-box', 'Calinski-Harabasz Criterion']
-            writer.writerows([j for j in enumerate([i[0] for i in b_clustering], 2)])
             b_ordering, b_distances = choose_best_clustering(b_clustering)
-        clustering_headings.extend(['Bounding-box cluster id','Distance from bounding-box cluster center', 'Tertiary axis of inertia', 'Secondary axis of inertia', 'Primary axis of inertia'])
-        clustering_results.extend([b_ordering, b_distances, tc_bbox[:,0], tc_bbox[:,1], tc_bbox[:,2]])
-    if len(clustering_headings) > 1:
-        writer.writerow(clustering_headings)
-        writer.writerows([i for i in zip(*clustering_results)])
+        b_headings = clustering_headings + (['Bounding-box cluster id','Distance from bounding-box cluster center', 'Tertiary axis of inertia', 'Secondary axis of inertia', 'Primary axis of inertia'])
+        b_results = clustering_results + [b_ordering, b_distances, tc_bbox[:,0], tc_bbox[:,1], tc_bbox[:,2]]
+        writer.writerow(b_headings)
+        writer.writerows([i for i in zip(*b_results)])
     # Calculate the RMSD matrix and perform filtering if desired
     if not args.no_rmsd:
         writer.writerow(['RMSD matrix'])
