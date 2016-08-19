@@ -74,10 +74,10 @@ def canonicalise(mol):
 def calculate_I_tensor(coords, weights):
     '''
     Calculate the inertia tensor of a molecule
-    
+
     Accepts a coordinate matrix
             a list of atomic weights
-            
+
     Returns the inertia tensor
     '''
     x  = coords[:,0]
@@ -98,9 +98,9 @@ def align_inertial(mol):
     Aligns a molecule so that its axes of inertia are aligned to the coordinate axes
     The primary axis (highest moment) will be aligned to the z-axis,
     while the tertiary (lowest moment) axis will be aligned to the x-axis
-    
+
     Accepts a molecule
-    
+
     Returns nothing, it modifies the molecule in-place
     '''
     c_weights = numpy.array([[constants.periodic_table[constants.periodic_list[i.num]]['mass']]for i in mol.atoms])
@@ -122,9 +122,9 @@ def align_inertial(mol):
 def find_bbox(mol):
     """
     Find the bounding box dimensions along the inertial axes
-    
+
     Accepts a molecule
-    
+
     Returns an array of lengths, from lowest to highest moment of inertia
     """
     align_inertial(mol)
@@ -160,18 +160,18 @@ def ch_cluster(data, method):
     Perform clustering on an array of data and
     calculate the Calinski-Harabasz Criterion for various k
     See Calinski and Harabasz., Commun. Stat., 1974, p 1
-    
+
     Accepts an array of data, with individual data points as the rows
         and a function which takes that data and a number of clusters,
             and returns a list of each data points' cluster ids, the cluster centers,
             the total distortion, and a list of the distance from each point to its nearest center
-            
+
     Returns a list of tuples containg: the criterion
                                         a list of each conformer's cluster id
                                         a list of the distance from each conformer to its cluster center
     Note that the list starts for two clusters, as the criterion cannot be calulated for one
     '''
-    
+
     all_data = []
     num_points = len(data)
     std_devs = numpy.std(data, axis=0)
@@ -195,13 +195,13 @@ def ch_cluster(data, method):
 def cluster_kmeans(data, k):
     '''
     Performs k-means clustering on a numpy array of data.
-    
+
     Accepts an array of data, with individual data points as the rows
             A number of clusters to make
-    
+
     Returns a list of each data points' cluster ids
             the cluster centers,
-            the total distortion, 
+            the total distortion,
             a list of the distance from each point to its nearest center
     '''
     whitened_data = scipy.cluster.vq.whiten(data)
@@ -212,10 +212,10 @@ def cluster_kmeans(data, k):
 def cluster_hierarchy(data, k):
     '''
     Performs hierarchical clustering on a numpy array of data
-    
+
     Accepts an array of data, with individual data points as the rows
     A number of clusters to make
-    
+
     Returns a list of each data points' cluster ids
     the cluster centers,
     the total distortion,
@@ -235,8 +235,8 @@ def cluster_hierarchy(data, k):
 def choose_best_clustering(clustering):
     '''
     Choose the best cluster size according to the *first derivative* of the Calinski-Harabasz criterion
-    
-    Accecpts a list of tuples of cluster details where the 
+
+    Accecpts a list of tuples of cluster details where the
     '''
     ch_criteria = [i[0] for i in clustering]
     if len(ch_criteria) == 1:
@@ -375,7 +375,7 @@ def parallel_coordinates(data, torsion_labels, categories, allow_inversion, ax=N
     for each_center, each_cluster, each_color in zip(all_centers, clusters, colors):
         for idx, i in enumerate(each_center):
             j = all_centers[0][idx]
-        
+
             if math.pi < j - i:
                 each_center[idx] = i + 2*math.pi
             elif math.pi < i - j:
@@ -561,7 +561,7 @@ if __name__ == '__main__':
     if matplotlib_available and not args.automatic:
         if not args.no_rmsd:
             greyscale_visualisation(rmsds)
-        if matplotlib_available and args.k_torsional:
+        if matplotlib_available and args.k_torsional and len(mol_names) > 3:
             parallel_coordinates(important_angles, ['-'.join([str(j + 1)for j in i]) for i in important_torsions], t_ordering, args.allow_inversion)
-        if matplotlib_available and args.k_bounding:
+        if matplotlib_available and args.k_bounding and len(mol_names) > 3:
             bbox_scatter(tc_bbox, b_ordering)
