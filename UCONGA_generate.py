@@ -9,6 +9,31 @@ import atom
 linear_tolerance = radians(170)
 
 
+def choose_scaling(mol):
+   '''
+   Selects a van der Waals scaling factor based on the steric crowding
+   An infinite linear alkane (average heavy valence=2) will have a high scaling factor
+   An infinite diamondoid (average heavy valence=4) will have a low scaling factor
+   '''
+   count = 0.0
+   tally = 0.0
+   for each_atom in mol.atoms:
+      hvy_val = each_atom.get_heavy_valence()
+      if hvy_val > 1:
+         count += 1
+         tally += hvy_val
+   average_steric = tally/count
+   strict_scaling = 0.9
+   loose_scaling = 0.7
+   scaling_delta = strict_scaling - loose_scaling
+   high_steric = 4.0 # Diamandoid
+   low_steric = 2.0 # Alkane
+   steric_delta = high_steric - low_steric
+   steric_percent = (average_steric - low_steric)/steric_delta
+   scaling_percent = 1.0 - steric_percent # High steric crowding => low cutoff
+   scaling = loose_scaling + (scaling_percent * scaling_delta)
+   return scaling
+
 def test_pair(pair, scaling):
     '''
         Test whether a pair of atoms are too close
@@ -469,7 +494,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=description,
                             formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('-s', '--scaling', help=scaling_help, type=float,
-                        default=0.9)
+                        default=None)
     parser.add_argument('-d', '--delta', help=delta_help, type=int, default=30)
     parser.add_argument('-i', '--allow_inversion', help=i_help, action='store_true')
     parser.add_argument('-o', '--output_name', help=o_help)
@@ -501,6 +526,8 @@ if __name__ == '__main__':
         base_file_name = args.output_name.replace('*', '{0}')
     if '{0}' not in base_file_name:
         raise(ValueError, "No wildcard in output file namer")
+    if args.scaling is None:
+      args.scaling = choose_scaling(mol)
     if args.scaling < 0 or args.scaling > 1:
         raise(ValueError, "van der Waals scaling factor not in 0<s<1)")
     if len(find_rotatable_bonds(mol)) < 5 or args.avoid_division:
