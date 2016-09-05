@@ -344,7 +344,12 @@ def divide_linear(mol, split):
         mol.update()
     return group_ids
 
-def divide_natural(mol, split):
+def group_rotatable_bonds(mol):
+    '''
+    Helper function for divide_natural
+    Finds groups of connected rotatable bonds
+    If they are longer than 6 bonds, splits as evenly as possible
+    '''
     rbs = [i[1:3] for i in find_rotatable_bonds(mol)]
     if len(rbs) <= 5: # Dont't need to split
         return [range(len(mol.atoms))]
@@ -378,25 +383,29 @@ def divide_natural(mol, split):
             rb_id_groups.append(tmp[0][2])
         else:
             rb_id_groups.append(new_group)
-    # Now we have the groups of bonds, find the atoms not in rotatable bonds in their groups
-    # Rigid linkers between two groups will be double-counted; This is intentional, and should
-    # Reduce the number of group conformers produced
-    rotatable_sets = [set(chain(*g)) for g in rb_id_groups]
+    return rb_id_groups
+
+def attach_rigid_linkers(rotatable_bonds, mol):
+    rotatable_sets = [set(chain(*g)) for g in rotatable_bonds]
     group_ids = []
     for each_idx, each_rotatable_set in enumerate(rotatable_sets):
         # Don't alter the original set - we'll want to reference it later
         each_tmp = [i for i in each_rotatable_set]
-        # Find all the atoms that are part of other rotatable bonds
-        other_sets = set([i for i in chain(*(rotatable_sets[:each_idx] + rotatable_sets[each_idx + 1:]))])
         # Walk through the set that we can alter, finding all neighbouring atoms not part of another rotatable bond
         working_idx = 0
         while working_idx < len(each_tmp):
             curr_atom = mol.atoms[each_tmp[working_idx]]
-            neighbour_ids = [i for i in curr_atom.get_bond_ids() if i not in other_sets]
-            each_tmp.extend([i for i in neighbour_ids if i not in each_tmp])
+            neighbour_ids = [i for i in curr_atom.get_bond_ids() if i not in each_tmp]
+            each_tmp.extend([i for i in neighbour_ids if not test_rotatable(mol.atoms[i], curr_atom)])
             working_idx += 1
         group_ids.append(each_tmp)
-    return [list(i) for i in group_ids]
+    return group_ids
+    
+
+def divide_natural(mol, split):
+    rot_bond_id_grps = group_rotatable_bonds(mol)
+    fragment_id_grps = attach_rigid_linkers(rot_bond_id_grps, mol)
+    return fragment_id_grps
 
 #Return the return lists
 def recombine(base_mol, group_conformers, subset_rotatable, subset_to_mol):
@@ -420,6 +429,10 @@ def divide_and_conquer(mol, final_detla, scaling, allow_inversion, split = [], v
     else:
         group_ids = divide_linear(mol, split)
     group_mols = [mol.copy_subset(i) for i in group_ids]
+    for idx, i in enumerate(group_mols):
+        with open('fragment_%d.cml' %idx, 'w') as f:
+            f.write(i.to_cml())
+    raise ValueError
     mol_to_subset = [{q: i.index(q) for q in range(len(mol.atoms)) if q in i} for i in group_ids]
     subset_to_mol = [{v:k for k, v in i.items()} for i in mol_to_subset]
     # Cap broken bonds with dummy atoms to guarantee that rotatable bonds stay rotatable
