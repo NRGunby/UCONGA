@@ -553,7 +553,7 @@ if __name__ == '__main__':
         writer.writerow(['Unique conformers'])
         accepted_ids = []
         for idx, rmsd_list in enumerate(rmsds):
-            maybe_unique = [i for idx, i in enumerate(rmsd_list[:idx]) if idx in accepted_ids]
+            maybe_unique = [j for jdx, j in enumerate(rmsd_list[:idx]) if jdx in accepted_ids]
             if len(maybe_unique) == 0 or min(maybe_unique) > args.uniqueness_cutoff:
                 writer.writerow([mol_names[idx]])
                 accepted_ids.append(idx)
