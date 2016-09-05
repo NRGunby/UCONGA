@@ -401,11 +401,51 @@ def attach_rigid_linkers(rotatable_bonds, mol):
         group_ids.append(each_tmp)
     return group_ids
     
+def recombine_fragments(fragment_id_grps, mol, num_bonds_in_frag):
+    combined_groups = []
+    merged = []
+    for base_id, each_base_group in enumerate(fragment_id_grps):
+        done = False
+        if base_id not in merged:
+            each_base_set = set(each_base_group)
+            for other_id, each_other_set in enumerate(fragment_id_grps):
+                if each_base_group != each_other_set:
+                    each_intersection = each_base_set.intersection(each_other_set)
+                    if each_intersection:
+                        base_difference = each_base_set.difference(each_intersection)
+                        other_difference = set(each_other_set).difference(each_intersection)
+                        # Get between-set bonds
+                        link_unique_bonds_1 = []
+                        for i, j in product(each_intersection, base_difference):
+                            if mol.get_bond_order(i, j):
+                                link_unique_bonds_1.append((j, i))
+                        link_unique_bonds_2 = []
+                        for i, j in product(each_intersection, other_difference):
+                            if mol.get_bond_order(i, j):
+                                link_unique_bonds_2.append((j, i))
+                        # Iterate over pairs of bonds
+                        for each_lu_bond_1, each_lu_bond_2 in product(link_unique_bonds_1, link_unique_bonds_2):
+                            union_atom_id = 1
+                            # If union atoms are connected to each other and the whole thing is cis, merge fragments
+                            if mol.get_bond_order(each_lu_bond_1[union_atom_id], each_lu_bond_2[union_atom_id]):
+                                if cos(mol.get_torsion(*(each_lu_bond_1 + each_lu_bond_2[::-1]))) > 0:
+                                    if num_bonds_in_frag[base_id] + num_bonds_in_frag[other_id] <= 5:
+                                        combined_groups.append(list(set(each_base_group + each_other_set)))
+                                        merged.append(other_id)
+                                        done = True
+                                        break
+            # If not merged with anything, leave unmerged
+            else:
+                if not done:
+                    combined_groups.append(list(each_base_group))
+    return [list(i) for i in combined_groups]
 
 def divide_natural(mol, split):
     rot_bond_id_grps = group_rotatable_bonds(mol)
+    group_sizes = [len(i) for i in rot_bond_id_grps]
     fragment_id_grps = attach_rigid_linkers(rot_bond_id_grps, mol)
-    return fragment_id_grps
+    recombined_id_grps = recombine_fragments(fragment_id_grps, mol, group_sizes)
+    return recombined_id_grps
 
 #Return the return lists
 def recombine(base_mol, group_conformers, subset_rotatable, subset_to_mol):
@@ -429,10 +469,6 @@ def divide_and_conquer(mol, final_detla, scaling, allow_inversion, split = [], v
     else:
         group_ids = divide_linear(mol, split)
     group_mols = [mol.copy_subset(i) for i in group_ids]
-    for idx, i in enumerate(group_mols):
-        with open('fragment_%d.cml' %idx, 'w') as f:
-            f.write(i.to_cml())
-    raise ValueError
     mol_to_subset = [{q: i.index(q) for q in range(len(mol.atoms)) if q in i} for i in group_ids]
     subset_to_mol = [{v:k for k, v in i.items()} for i in mol_to_subset]
     # Cap broken bonds with dummy atoms to guarantee that rotatable bonds stay rotatable
