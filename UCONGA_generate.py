@@ -113,7 +113,7 @@ def test_interesting(atom_1, atom_2):
     if 0 in [len(i) for i in heavy_neighbours]:
         return False
     # Is either end nearly linear?
-    elif True in [len(i) == 1 and abs(this_mol.get_angle(each.get_id(), i[0], other.get_id())) > linear_tolerance
+    elif True in [len(i) == 1 and abs(this_mol.get_angle(i[0], each.get_id(), other.get_id())) > linear_tolerance
                   for i, each, other in zip(heavy_neighbours, ats, ats[::-1])]:
         return False
     else:
