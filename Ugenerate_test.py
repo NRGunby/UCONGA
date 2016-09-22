@@ -132,6 +132,7 @@ class TestTestInteresting(unittest.TestCase):
     
     def test_linear_bond(self):
         result = UCONGA_generate.test_interesting(linear_mol.atoms[6], linear_mol.atoms[8])
+        self.assertFalse(result)
 
     def test_interesting_bond(self):
         result = UCONGA_generate.test_interesting(*dbl_ring_bond)
