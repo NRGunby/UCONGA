@@ -49,6 +49,14 @@ class TestFindPlane(unittest.TestCase):
         for each_atom in m_carbons.atoms:
             self.assertAlmostEqual(dot(each_atom.coords, m_norm), 0, 2)
 
+    def test_nonplanar_ring(self):
+        m = molecule.from_cml('test_molecules/ethylcyclohexane_isospectral.cml')
+        m_carbons = m.copy_subset([0, 1, 2, 5, 8, 13])
+        m_carbons.center()
+        m_norm = ring_lib.find_plane_of_ring(m_carbons.coord_matrix())
+        res = sum([dot(i.coords, m_norm) for i in m_carbons.atoms])
+        self.assertAlmostEqual(res, 0)
+
 
 if __name__ == '__main__':
     unittest.main()
