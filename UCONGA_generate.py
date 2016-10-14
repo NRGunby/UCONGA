@@ -351,8 +351,6 @@ def group_rotatable_bonds(mol):
     If they are longer than 6 bonds, splits as evenly as possible
     '''
     rbs = [i[1:3] for i in find_rotatable_bonds(mol)]
-    if len(rbs) <= 5: # Dont't need to split
-        return [range(len(mol.atoms))]
     rb_id_groups = []
     while rbs:
         q = [rbs.pop()]
@@ -400,7 +398,7 @@ def attach_rigid_linkers(rotatable_bonds, mol):
             working_idx += 1
         group_ids.append(each_tmp)
     return group_ids
-    
+
 def recombine_fragments(fragment_id_grps, mol, num_bonds_in_frag):
     combined_groups = []
     merged = []
