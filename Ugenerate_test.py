@@ -31,6 +31,21 @@ monogauche_1 = molecule.from_cml('test_molecules/methylbutane_monogauche_1.cml')
 monogauche_2 = molecule.from_cml('test_molecules/methylbutane_monogauche_2.cml')
 linear_mol = molecule.from_cml('test_molecules/1_butyne.cml')
 
+class TestChooseScaling(unittest.TestCase):
+    def test_neopentane(self):
+        m = molecule.from_cml('test_molecules/neopentane.cml')
+        res = UCONGA_generate.choose_scaling(m)
+        self.assertEqual(res, 0.7)
+
+    def test_propane(self):
+        m = molecule.from_cml('test_molecules/propane.cml')
+        res = UCONGA_generate.choose_scaling(m)
+        self.assertEqual(res, 0.9)
+
+    def test_isobutane(self):
+        m = molecule.from_cml('test_molecules/isobutane.cml')
+        res = UCONGA_generate.choose_scaling(m)
+        self.assertEqual(res, 0.8)
 
 class TestFindOlderSiblings(unittest.TestCase):
     def test_older_sibling(self):
@@ -129,7 +144,7 @@ class TestTestInteresting(unittest.TestCase):
     def test_Me_bond(self):
         result = UCONGA_generate.test_interesting(*methyl_bond)
         self.assertFalse(result)
-    
+
     def test_linear_bond(self):
         result = UCONGA_generate.test_interesting(linear_mol.atoms[6], linear_mol.atoms[8])
         self.assertFalse(result)
