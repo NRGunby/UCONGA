@@ -34,9 +34,9 @@ class TestFindConformers(unittest.TestCase):
         self.assertEqual(len(confs), 1)
 
     def test_ethylcyclohexane(self):
-        ech_mol = molecule.from_cml('test_molecules/ethylcyclohexane_isospectral.cml')
-        rs = ring_lib.find_ring_systems(ech_mol)[0]
-        confs = ring_lib.find_ring_conformers(ech_mol, rs)
+        each_mol = molecule.from_cml('test_molecules/ethylcyclohexane_isospectral.cml')
+        rs = ring_lib.find_ring_systems(each_mol)[0]
+        confs = ring_lib.find_ring_conformers(each_mol, rs)
         self.assertEqual(len(confs), 2)
 
 class TestFindPlane(unittest.TestCase):
