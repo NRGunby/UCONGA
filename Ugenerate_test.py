@@ -47,6 +47,25 @@ class TestChooseScaling(unittest.TestCase):
         res = UCONGA_generate.choose_scaling(m)
         self.assertEqual(res, 0.8)
 
+class TestGroupRotatable(unittest.TestCase):
+    def test_very_big(self):
+        big_mol = molecule.from_cml('test_molecules/bigmol.cml')
+        grps = UCONGA_generate.group_rotatable_bonds(big_mol)
+        res = sorted([sorted(i) for i in grps])
+        self.assertEqual(res, [[(1, 5), (5, 8), (8, 11)],[(14, 17), (17, 20), (20, 23)]])
+
+    def test_ring(self):
+        ring_mol = molecule.from_cml('test_molecules/112triethylcyclopropane.cml')
+        grps = UCONGA_generate.group_rotatable_bonds(ring_mol)
+        res = sorted([sorted(i) for i in grps])
+        self.assertEqual(res, [[(0, 5), (0, 6)],[(2, 13)]])
+
+    def test_alkene(self):
+        alkene_mol = molecule.from_cml('test_molecules/transdiethylethylene.cml')
+        grps = UCONGA_generate.group_rotatable_bonds(alkene_mol)
+        res = sorted([sorted(i) for i in grps])
+        self.assertEqual(res, [[(0, 2)], [(1, 5)]])
+
 class TestFindOlderSiblings(unittest.TestCase):
     def test_older_sibling(self):
         classes = ttbds.get_morgan_equivalencies()
