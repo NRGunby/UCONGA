@@ -66,6 +66,25 @@ class TestGroupRotatable(unittest.TestCase):
         res = sorted([sorted(i) for i in grps])
         self.assertEqual(res, [[(0, 2)], [(1, 5)]])
 
+class TestAttachRigid(unittest.TestCase):
+    def test_ring(self):
+        ring_mol = molecule.from_cml('test_molecules/112triethylcyclopropane.cml')
+        grps = UCONGA_generate.group_rotatable_bonds(ring_mol)
+        fragments = UCONGA_generate.attach_rigid_linkers(grps, ring_mol)
+        res = sorted([sorted(i) for i in fragments])
+        ref = [[23, 26, 27, 25, 7, 22, 24, 1, 6, 9, 10, 8, 11, 12, 13, 2, 4, 5, 3, 15],
+               [1,  2, 4, 5, 3, 15, 14, 17, 18, 16, 19, 20, 21]]
+        self.assertEqual(res, sorted([sorted([j - 1 for j in i]) for i in ref]))
+
+def test_alkene(self):
+    alkene_mol = molecule.from_cml('test_molecules/transdiethylethylene.cml')
+    grps = UCONGA_generate.group_rotatable_bonds(alkene_mol)
+    fragments = UCONGA_generate.attach_rigid_linkers(grps, alkene_mol)
+    res = sorted([sorted(i) for i in fragments])
+    ref = [[1, 2, 4, 5, 6, 7, 9, 8, 13, 14, 15],
+           [1, 2, 4, 5, 3, 10, 11, 12, 16, 17, 18]]
+    self.assertEqual(res, sorted([sorted([j - 1 for j in i]) for i in ref]))
+
 class TestFindOlderSiblings(unittest.TestCase):
     def test_older_sibling(self):
         classes = ttbds.get_morgan_equivalencies()
