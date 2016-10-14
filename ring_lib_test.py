@@ -74,6 +74,30 @@ class TestIsFlippable(unittest.TestCase):
         res = ring_lib.is_flippable(m, [0, 1, 2, 5, 8, 13])
         self.assertTrue(res)
 
+class TestFlipRing(unittest.TestCase):
+
+    def test_is_flipped(self):
+        m = molecule.from_cml('test_molecules/chiral_ring.cml')
+        old_torsion = m.get_torsion(3, 1, 0, 17)
+        flipped_m = ring_lib.flip_ring(m, [0, 2, 5, 8, 11, 1])
+        flipped_torsion = flipped_m.get_torsion(3, 1, 0, 17)
+        self.assertAlmostEqual(old_torsion, -1*flipped_torsion, 1)
+
+    def test_idempotent(self):
+        m = molecule.from_cml('test_molecules/chiral_ring.cml')
+        flipped_m = ring_lib.flip_ring(m, [0, 2, 5, 8, 11, 1])
+        m_again = ring_lib.flip_ring(flipped_m, [0, 2, 5, 8, 11, 1])
+        m.center()
+        m_again.center()
+        res = calc_min_rmsd(m.coord_matrix(), m_again.coord_matrix())
+        self.assertAlmostEqual(res, 0)
+
+    def test_preserve_stereochem(self):
+        m = molecule.from_cml('test_molecules/chiral_ring.cml')
+        old_stereo = m.get_morgan_equivalencies()
+        flipped_m = ring_lib.flip_ring(m, [0, 2, 5, 8, 11, 1])
+        flipped_stereo = flipped_m.get_morgan_equivalencies()
+        self.assertEqual(old_stereo, flipped_stereo)
 
 if __name__ == '__main__':
     unittest.main()
