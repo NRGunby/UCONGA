@@ -57,6 +57,23 @@ class TestFindPlane(unittest.TestCase):
         res = sum([dot(i.coords, m_norm) for i in m_ring.atoms])
         self.assertAlmostEqual(res, 0)
 
+class TestIsFlippable(unittest.TestCase):
+
+    def test_3membered_ring(self):
+        m = molecule.from_cml('test_molecules/methylcyclopropane.cml')
+        res = ring_lib.is_flippable(m, [1, 5, 8])
+        self.assertFalse(res)
+
+    def test_aromatic(self):
+        m = molecule.from_cml('test_molecules/benzene.cml')
+        res = ring_lib.is_flippable(m, [0, 1, 2, 3, 4, 5])
+        self.assertFalse(res)
+
+    def test_flippable(self):
+        m = molecule.from_cml('test_molecules/ethylcyclohexane_isospectral.cml')
+        res = ring_lib.is_flippable(m, [0, 1, 2, 5, 8, 13])
+        self.assertTrue(res)
+
 
 if __name__ == '__main__':
     unittest.main()
