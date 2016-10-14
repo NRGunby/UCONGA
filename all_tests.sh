@@ -3,3 +3,4 @@ do
     echo 'Running' $i
     python $i
 done
+rm tmp.cml
