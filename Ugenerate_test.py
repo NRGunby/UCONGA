@@ -85,6 +85,58 @@ def test_alkene(self):
            [1, 2, 4, 5, 3, 10, 11, 12, 16, 17, 18]]
     self.assertEqual(res, sorted([sorted([j - 1 for j in i]) for i in ref]))
 
+class TestRecombineFragments(unittest.TestCase):
+    def test_alkene_negative(self):
+        alkene_mol = molecule.from_cml('test_molecules/transdiethylethylene.cml')
+        grps = UCONGA_generate.group_rotatable_bonds(alkene_mol)
+        fragments = UCONGA_generate.attach_rigid_linkers(grps, alkene_mol)
+        group_sizes = [len(i) for i in grps]
+        recombined_frags = UCONGA_generate.recombine_fragments(fragments, alkene_mol, group_sizes)
+        res = sorted([sorted(i) for i in recombined_frags])
+        ref = [[1, 2, 4, 5, 6, 7, 9, 8, 13, 14, 15],
+               [1, 2, 4, 5, 3, 10, 11, 12, 16, 17, 18]]
+        self.assertEqual(res, sorted([sorted([j - 1 for j in i]) for i in ref]))
+
+    def test_alkene_positive(self):
+        alkene_mol = molecule.from_cml('test_molecules/cisdiethylethylene.cml')
+        grps = UCONGA_generate.group_rotatable_bonds(alkene_mol)
+        fragments = UCONGA_generate.attach_rigid_linkers(grps, alkene_mol)
+        group_sizes = [len(i) for i in grps]
+        recombined_frags = UCONGA_generate.recombine_fragments(fragments, alkene_mol, group_sizes)
+        res = sorted([sorted(i) for i in recombined_frags])
+        ref = [[1, 2, 4, 5, 6, 7, 9, 8, 13, 14, 15, 3, 10, 11, 12, 16, 17, 18]]
+        self.assertEqual(res, sorted([sorted([j - 1 for j in i]) for i in ref]))
+
+    def test_cyclic_positive(self):
+        ring_mol = molecule.from_cml('test_molecules/112triethylcyclopropane.cml')
+        grps = UCONGA_generate.group_rotatable_bonds(ring_mol)
+        fragments = UCONGA_generate.attach_rigid_linkers(grps, ring_mol)
+        group_sizes = [len(i) for i in grps]
+        recombined_frags = UCONGA_generate.recombine_fragments(fragments, ring_mol, group_sizes)
+        res = sorted([sorted(i) for i in recombined_frags])
+        ref = [[1, 2, 4, 5, 6, 7, 9, 8, 13, 14, 15, 3, 10, 11, 12, 16, 17, 18,
+                19, 20, 21, 22, 23, 24, 25, 26, 27]]
+        self.assertEqual(res, sorted([sorted([j - 1 for j in i]) for i in ref]))
+
+    def test_cyclic_negative(self):
+        ring_mol = molecule.from_cml('test_molecules/unmergable_ring.cml')
+        grps = UCONGA_generate.group_rotatable_bonds(ring_mol)
+        fragments = UCONGA_generate.attach_rigid_linkers(grps, ring_mol)
+        group_sizes = [len(i) for i in grps]
+        recombined_frags = UCONGA_generate.recombine_fragments(fragments, ring_mol, group_sizes)
+        res = sorted([sorted(i) for i in recombined_frags])
+        ref = [[1, 2, 3, 6, 7, 12, 9, 10, 4, 5, 8, 16, 17, 18],
+                [1, 2, 3, 6, 7, 12, 9, 10, 4, 5, 11, 13, 14, 15]]
+        self.assertEqual(res, sorted([sorted([j - 1 for j in i]) for i in ref]))
+
+    def test_oversized_negative(self):
+        ring_mol = molecule.from_cml('test_molecules/too_big_to_merge.cml')
+        grps = UCONGA_generate.group_rotatable_bonds(ring_mol)
+        fragments = UCONGA_generate.attach_rigid_linkers(grps, ring_mol)
+        group_sizes = [len(i) for i in grps]
+        recombined_frags = UCONGA_generate.recombine_fragments(fragments, ring_mol, group_sizes)
+        self.assertEqual(len(recombined_frags), 2)
+
 class TestFindOlderSiblings(unittest.TestCase):
     def test_older_sibling(self):
         classes = ttbds.get_morgan_equivalencies()
