@@ -1,10 +1,12 @@
 import math
 import numpy
 
+
 def normalise(a):
     'Normalises a vector'
     a_norm = numpy.linalg.norm(a)
     return numpy.array([float(each)/a_norm for each in a])
+
 
 def rotation_axis_angle(axis, angle):
     '''
@@ -42,13 +44,15 @@ def rotation_from_axes(ax1, ax2):  # To test
         rot_ax = numpy.cross(ax1, ax2)
         return rotation_axis_angle(rot_ax, ang)
 
+
 def angle_between(vec1, vec2):
-    return math.acos(float(vec1.dot(vec2))/
-                     (numpy.linalg.norm(vec1)*numpy.linalg.norm(vec2)))
+    return math.acos(float(vec1.dot(vec2)) /
+                     (numpy.linalg.norm(vec1) * numpy.linalg.norm(vec2)))
+
 
 def reflection_plane(vec1, vec2):
     '''
-    Returns the Householder reflection matrix for reflection through 
+    Returns the Householder reflection matrix for reflection through
     the plane containning two vectors
     '''
     norm = numpy.cross(vec1, vec2)
