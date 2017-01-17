@@ -5,8 +5,9 @@ import linalg
 import numpy
 import atom
 from math import atan2, sin, cos, degrees, acos
-from constants import lbl_atom, lbl_atom_array, lbl_bond, lbl_bond_array, lbl_atom_refs, lbl_order, id_to_py, lbl_molecule, py_to_id
+from constants import *
 import warnings
+
 
 class molecule(object):
     '''
@@ -18,7 +19,8 @@ class molecule(object):
         Creates a molecule object
         Accepts:
             A list of atoms
-            Optionally: A bond array, where the ijth entry is the bond order between atoms i and j
+            Optionally: A bond array, where the ijth entry is the bond order
+                        between atoms i and j
         Returns:
             A molecule object
         '''
@@ -35,7 +37,6 @@ class molecule(object):
         self.rings = []
         if bonds:
             self.update()
-
 
     def update(self):
         '''
@@ -62,7 +63,7 @@ class molecule(object):
         Accepts:
             An atom object
             Optional: A boolean representing whether to rebuild other arrays or not
-                      This defaults to True, but if many atoms are being added set to 
+                      This defaults to True, but if many atoms are being added set to
                       False for all but the last to increase efficiency
         '''
         self.atoms.append(new_atom)
@@ -83,7 +84,7 @@ class molecule(object):
             The int ids of the two atoms to bond
             The int bond order
             Optional: A boolean representing whether to rebuild other arrays or not
-                      This defaults to True, but if many atoms are being added set to 
+                      This defaults to True, but if many atoms are being added set to
                       False for all but the last to increase efficiency
         '''
         if id1 == id2:
@@ -118,7 +119,7 @@ class molecule(object):
             An int
         '''
         return self.bonds[id1][id2]
-    
+
     def get_angle(self, id_1, id_center, id_2):
         '''
         Returns the angle in radians defined by three atoms
@@ -186,7 +187,8 @@ class molecule(object):
         while unfound_atom_pairs:
             for each_atom_idx_pair in set(unfound_atom_pairs):
                 idx_atom_1, idx_atom_2 = each_atom_idx_pair
-                # Is there a path between these atoms, and have they not been connected before?
+                # Is there a path between these atoms,
+                # and have they not been connected before?
                 if (working_matrix[idx_atom_1][idx_atom_2] and not
                         distances_matrix[idx_atom_1][idx_atom_2]):
                     distances_matrix[idx_atom_1][idx_atom_2] = current_distance
@@ -194,7 +196,8 @@ class molecule(object):
                     unfound_atom_pairs.remove(each_atom_idx_pair)
             current_distance += 1  # We've checked all pairs - onto the next power
             if current_distance > limit:
-                warnings.warn("Some atoms unconnected. Continuing as best possible.", RuntimeWarning)
+                warnings.warn("Some atoms unconnected. Continuing as best possible.",
+                              RuntimeWarning)
                 break
             working_matrix = working_matrix.dot(self.bonds)
             self.distances = distances_matrix
@@ -202,7 +205,7 @@ class molecule(object):
     def find_rings(self):
         '''
         Updates the list of rings.
-        This consists of all rings, not just the smallest set of smallest rings (SSSR).
+        This consists of all rings, not just the smallest set of smallest rings.
         '''
         self.rings = []
         idx = 0
@@ -221,12 +224,12 @@ class molecule(object):
                 if each_idx_child in current_chain: # This defines a ring
                     idx_chain_closure = current_chain.index(each_idx_child)
                     new_ring = current_chain[idx_chain_closure:]
-                    # Avoid double-counting by only adding the 'clockwise' version of the ring
+                    # Avoid double-counting by only adding the 'clockwise' ring
                     if new_ring[1] < new_ring[-1]:
                         self.rings.append(new_ring + [each_idx_child])
                 else:
-                    queue_chains.append(current_chain + [each_idx_child]) # Keep searching
-        #Some double-counting will have occured, so remove duplicate rings
+                    queue_chains.append(current_chain + [each_idx_child])  # Keep searching
+        # Some double-counting will have occured, so remove duplicate rings
         sorted_rings = [sorted(i[:-1]) for i in self.rings]
         idx_working = 0
         while idx_working < len(self.rings):
@@ -238,24 +241,23 @@ class molecule(object):
             else:
                 idx_working += 1
 
-
     def label_aromatics(self):
         '''
         Changes the order of all aromatic bonds to 1.5
         Keeps a record of what has been changed
         '''
-        aromatic_disordered_alternating_bond_orders = set([frozenset([q]) for q in (1, 2)])
+        reference = set([frozenset([q]) for q in (1, 2)])
         for each_ring in self.rings:
             bond_orders = [self.bonds[j][k] for j, k in zip(each_ring[:-1], each_ring[1:])]
             alternating_bond_orders = (bond_orders[1::2], bond_orders[::2])
             disordered_alternating_bond_orders = set([frozenset(q)
                                                       for q in alternating_bond_orders])
-            if disordered_alternating_bond_orders == aromatic_disordered_alternating_bond_orders:
+            if disordered_alternating_bond_orders == reference:
                 for idx_at_1, idx_at_2 in zip(each_ring[:-1], each_ring[1:]):
-                    self.aromatised_bonds.append((idx_at_1, idx_at_2, self.bonds[idx_at_1][idx_at_2]))
+                    self.aromatised_bonds.append((idx_at_1, idx_at_2,
+                                                 self.bonds[idx_at_1][idx_at_2]))
                     self.bonds[idx_at_1][idx_at_2] = 1.5
                     self.bonds[idx_at_2][idx_at_1] = 1.5
-
 
     def is_in_ring(self, id1, id2):
         '''
@@ -270,7 +272,7 @@ class molecule(object):
                 return True
         return False
 
-# A collection of utility methods refactored out of get_morgan_equivalencies to save on length
+# A collection of utility methods refactored out of get_morgan_equivalencies
 # These are all elated to nuclear permutational symmetry
 
     def follow_dbl_chain(self, id1):
@@ -288,7 +290,7 @@ class molecule(object):
         old_id = id1
         curr_bonds = [i for i in self.bonds[old_id]]
         if curr_bonds.count(2.0) != 1:
-            return None # We came into the middle of a chain or a non-chain
+            return None  # We came into the middle of a chain or a non-chain
         curr_id = curr_bonds.index(2.0)
         while True:
             curr_bonds = [i for i in self.bonds[curr_id]]
@@ -312,8 +314,6 @@ class molecule(object):
                     old_id = curr_id
                     curr_id = curr_bonds.index(2.0, tmp + 1)
 
-
-
     def find_dbl_systems(self, sym_classes):
         '''
         Finds doubly-bonded systems with defined stereochemistry
@@ -322,15 +322,20 @@ class molecule(object):
         Accepts:
             A list of the symmetry classes of each atom in the molecule
         Yields:
-            4-tuples consisting of: the number of bonds in the chain, a list of the atom ids of the 
-                                   substituents of the ends of the chain, the id of one end of the 
-                                   chain, the id of the other end of the chain
+            4-tuples consisting of: the number of bonds in the chain,
+                                    a list of the atom ids of the
+                                          substituents of the ends of the chain,
+                                          the id of one end of the chain,
+                                          the id of the other end of the chain
         '''
         for each_idx_1, each_bond_list in enumerate(self.bonds):
             dc = self.follow_dbl_chain(each_idx_1)
             if dc is not None:
                 each_idx_2, n_bonds_in_chain = dc
-                atoms = [(self.atoms[i], list(self.bonds[i]).index(2.0)) for i in (each_idx_1, each_idx_2)]
+                atoms = []
+                for i in (each_idx_1, each_idx_2):
+
+                atoms.append((self.atoms[i], list(self.bonds[i]).index(2.0)))
                 ends = [p[0].search_away_from(p[1]) for p in atoms]
                 lengths = [len(k) for k in ends]
                 if lengths[0] > 2 or lengths[1] > 2 or 0 in lengths:
@@ -344,7 +349,6 @@ class molecule(object):
                         if [len(set([sym_classes[i] for i in j])) == len(j) for j in ends] == [True, True]:
                             yield n_bonds_in_chain, ends, each_idx_1, each_idx_2
 
-    
     def assign_dbl_stereochem(self, sym_classes):
         '''
         Finds and assigns stereocehmistry to double-bond collections,
@@ -445,7 +449,7 @@ class molecule(object):
                     # It find the in-ring atoms they are bonded to.
                     # The actual doubly-bonded stereocentres are found through the
                     # later attempts to connect everything
-                    
+
                     dbl_para = (len(other_neighbours) == 1 and
                                 self.bonds[each_idx][other_neighbours[0]] == 2 and
                                 len(set([sym_classes[i] for i in self.atoms[self.follow_dbl_chain(each_idx)[0]].get_bond_ids()])) == len([sym_classes[i] for i in self.atoms[self.follow_dbl_chain(each_idx)[0]].get_bond_ids()]) and
@@ -459,7 +463,7 @@ class molecule(object):
     def find_para_groups(self, sym_classes):
         '''
         Groups cantidate parastereocentres by which ring system they are in
-        The ring systems returned by ring_lib can't be used since here we consider rings joined by 
+        The ring systems returned by ring_lib can't be used since here we consider rings joined by
         spiro centres and double bonds to be part of the same system
         '''
         all_ids_ring_atoms, candidates = self.find_para_candidates(sym_classes)
@@ -467,7 +471,7 @@ class molecule(object):
         paras_touched = []
         # Group the parastereocentres together
         for each_atom_candidate in candidates:
-            if each_atom_candidate not in paras_touched:    
+            if each_atom_candidate not in paras_touched:
                 paras_touched.append(each_atom_candidate)
                 i_groups = [each_atom_candidate]
                 rings_stack = []
@@ -480,17 +484,18 @@ class molecule(object):
                 # Then find the rings connected to that ring
                 # And the parastereocentre candidates in all of them
                     curr_ring = rings_stack[curr_ring_idx]
-                    for at_idx in curr_ring: # Is the system extended?
+                    for at_idx in curr_ring:  # Is the system extended?
                         if all_ids_ring_atoms.count(at_idx) > 1:
                             # The atom is in a second ring
                             for r in self.rings:
-                                # If we haven't already looked through this ring, add it to the stack
+                                # If we haven't already looked through this ring
+                                # add it to the stack
                                 if at_idx in r and r not in rings_stack:
                                     rings_stack.append(r)
                         if 2 in self.bonds[at_idx]:
                             # The atom is double-bonded - look at the other end
                             other_idx = list(self.bonds[at_idx]).index(2)
-                            if other_idx in all_ids_ring_atoms: # Extend the system
+                            if other_idx in all_ids_ring_atoms:  # Extend the system
                                 for r in self.rings:
                                     if other_idx in r and r not in rings_stack:
                                         rings_stack.append(r)
@@ -500,11 +505,12 @@ class molecule(object):
                     if (other_at_candidate != each_atom_candidate and
                        True in [idx_other_candidate in i for i in rings_stack] and
                        other_at_candidate not in paras_touched):
-                       i_groups.append(other_at_candidate)
-                       paras_touched.append(other_at_candidate)
+                        i_groups.append(other_at_candidate)
+                        paras_touched.append(other_at_candidate)
                 # That's all the conncted atoms found
                 if len(i_groups) > 1:
-                    # Replace any double-bonded atoms with whatever they are double-bonded to (the real parastereocentre):
+                    # Replace any double-bonded atoms with
+                    # whatever they are double-bonded to (the real parastereocentre):
                     for idx_in_group, at in enumerate(i_groups):
                         idx_in_molecule = at.get_id()
                         if 2 in self.bonds[idx_in_molecule]:
@@ -516,8 +522,10 @@ class molecule(object):
     def assign_para_stereochem(self, sym_classes):
         '''
         Assigns labels to the parastereocentres previously found and grouped
-        Those that are in a group of one can be discarded, as they are not actually parastereocentres.
-        Those in larger groups have labels assigned based on their relative stereochemistry to the other parastereocentres in the group
+        Those that are in a group of one can be discarded,
+        as they are not actually parastereocentres.
+        Those in larger groups have labels assigned based on their relative
+        stereochemistry to the other parastereocentres in the group
         '''
         para_stereochemistry = [0 for i in self.atoms]
         para_groups = self.find_para_groups(sym_classes)
@@ -534,15 +542,21 @@ class molecule(object):
             for each_at_idx in range(l):
                 head = group[0]
                 head_id = head.get_id()
-                head_hp_subs = filter(lambda x: ((x not in all_ids_ring_atoms) and (self.bonds[head_id][x] == 1)), head.get_bond_ids())
+                head_hp_subs = filter(lambda x: ((x not in all_ids_ring_atoms)
+                                                 and (self.bonds[head_id][x] == 1)),
+                                      head.get_bond_ids())
                 head_hp_subs.sort(key=lambda x: sym_classes[x])
                 head_hp_sub = head_hp_subs[-1]
                 tail = list(group)[1:]
                 stereochem_list = []
-                tail.sort(key=lambda x: (sym_classes[x.get_id()], self.distances[head_id][x.get_id()]))
+                tail.sort(key=lambda x: (sym_classes[x.get_id()],
+                                         self.distances[head_id][x.get_id()]))
                 for tail_at in tail:
                     tail_id = tail_at.get_id()
-                    tail_hp_subs = filter(lambda x: ((x not in all_ids_ring_atoms) and (self.bonds[tail_id][x] == 1)), tail_at.get_bond_ids())
+                    tail_hp_subs = []
+                    for i in tail_at.get_bond_ids():
+                        if (i not in all_ids_ring_atoms) and (self.bonds[tail_id][i] == 1):
+                            tail_hp_subs.append(i)
                     tail_hp_subs.sort(key=lambda x: sym_classes[x])
                     tail_hp_sub = tail_hp_subs[-1]
                     t = self.get_torsion(head_hp_sub, head_id, tail_id, tail_hp_sub)
@@ -557,12 +571,10 @@ class molecule(object):
                 group.rotate()
         return para_stereochemistry
 
-
-
-
     def get_morgan_equivalencies(self):
         '''
-        Modified Morgan algorithm for classifying atoms by nuclear permutational symmetry
+        Modified Morgan algorithm for classifying atoms by nuclear
+            permutational symmetry
         Based on Moreau, Nouv. J. Chim., 1980, p 17
 
         My changes include:
@@ -583,7 +595,8 @@ class molecule(object):
         connectivities = [each.get_heavy_valence() for each in self.atoms]
         initial_ranks = rank(connectivities)
         new_ranks = rank_until_converged(initial_ranks, all_ids_neighbours)
-        # Now the modified part starts, by using the pi functionality and atomic number
+        # Now the modified part starts
+        # It uses the pi functionality and atomic number
         # Moreau is somewhat unclear about what pi functionality is
         # I have interpreted it to mean number of multiple bonds
         pi_functionalities = [len(filter(lambda x: x > 1, i))
@@ -595,14 +608,14 @@ class molecule(object):
             new_ranks = rank_until_converged(init_ranks, all_ids_neighbours)
         # Stereochemistry handling uses methods, not lists
         # So it needs a seperate loop.
-        for stereochem_assigner in (self.assign_dbl_stereochem, self.assign_tet_stereochem,
+        for stereochem_assigner in (self.assign_dbl_stereochem,
+                                    self.assign_tet_stereochem,
                                     self.assign_para_stereochem):
             stereochem = stereochem_assigner(new_ranks)
             init_ranks = [(r << 8) + a for r, a in
                           zip(new_ranks, stereochem)]
             new_ranks = rank_until_converged(init_ranks, all_ids_neighbours)
         return new_ranks
-
 
     def get_torsion(self, id1, id2, id3, id4):
         '''
@@ -644,8 +657,9 @@ class molecule(object):
             assert abs(sin(d) - sin(torsion)) < 1e-3
             assert abs(cos(d) - cos(torsion)) < 1e-3
         except AssertionError:
-            msg = 'Failed to set torsion %s' %'->'.join([py_to_id(i) for i in (id1, id2, id3, id4)])
-            msg += '\n Should be %f, is %f' %(degrees(torsion), degrees(d))
+            lbl = '->'.join([py_to_id(i) for i in (id1, id2, id3, id4)])
+            msg = 'Failed to set torsion % s' % lbl
+            msg += '\n Should be %f, is %f' % (degrees(torsion), degrees(d))
             raise RuntimeError(msg)
 
     def center(self):
@@ -670,7 +684,6 @@ class molecule(object):
         for i in self.atoms:
             i.rotate(matrix)
 
-
     def copy(self):
         '''
         Returns a copy of the molecule
@@ -690,8 +703,11 @@ class molecule(object):
         new_bonds = [[self.bonds[j][i] for j in ids] for i in ids]
         trans_dict = {i: idx for idx, i in enumerate(ids)}
         new_mol = molecule(new_atoms, new_bonds)
-        translated_aromatised_bonds = [(trans_dict[i[0]],trans_dict[i[1]], i[2]) for i in self.aromatised_bonds if i[1] in trans_dict and i[0] in trans_dict]
-        new_mol.aromatised_bonds.extend(translated_aromatised_bonds)
+        trans_arom_bds = []
+        for i in self.aromatised_bonds:
+            if i[1] in trans_dict and i[0] in trans_dict:
+                trans_arom_bds.append((trans_dict[i[0]], trans_dict[i[1]], i[2]))
+        new_mol.aromatised_bonds.extend(trans_arom_bds)
         return new_mol
 
     def copy_without_H(self):
@@ -699,8 +715,6 @@ class molecule(object):
         Removes stereochemically unimportant hydrogen atoms.
         A hydrogen is stereochemically unimportant if it is a) not bridging and
         b) not the only hydrogen attached to an atom
-        The distinction between interesting and uninteresting hydrogens makes this seperate
-        from copy_subset
         Returns:
             A molecule object
             An old id -> new id translation table
@@ -723,15 +737,20 @@ class molecule(object):
         new_mol = molecule(hless_new_atoms)
         for each_idx_row, each_row in enumerate(self.bonds):
             for each_val_idx, each_val in enumerate(each_row):
-                new = [trans[each] for each in (each_idx_row, each_val_idx)] + [each_val, False]
+                new = []
+                for each in (each_idx_row, each_val_idx):
+                    new.append(trans[each])
+                new.append([each_val, False])
                 if -1 not in new and each_val > 0:
                     new_mol.add_bond(*new)
         new_mol.update()
         trans_dict = {i: idx for idx, i in enumerate(trans) if i > -1}
-        translated_aromatised_bonds = [(trans_dict[i[0]],trans_dict[i[1]], i[2]) for i in self.aromatised_bonds if i[1] in trans_dict and i[0] in trans_dict]
-        new_mol.aromatised_bonds.extend(translated_aromatised_bonds)
+        trans_arom_bds = []
+        for i in self.aromatised_bonds:
+            if i[1] in trans_dict and i[0] in trans_dict:
+                trans_arom_bds.append((trans_dict[i[0]], trans_dict[i[1]], i[2]))
+        new_mol.aromatised_bonds.extend(trans_arom_bds)
         return new_mol, trans_dict
-
 
     def test_ordering(self, ordering):
         '''
@@ -809,7 +828,7 @@ def from_cml(file_name):
         root = tree.getroot()
         atom_array = [i for i in root if lbl_atom_array in i.tag][0]
         b_atoms = [atom.from_cml(i) for i in atom_array if lbl_atom in i.tag]
-        b_atoms.sort() # Guarantee that the ids will be correct
+        b_atoms.sort()  # Guarantee that the ids will be correct
         atoms = [i[1] for i in b_atoms]
         m = molecule(atoms)
         bond_array = [i for i in root if lbl_bond_array in i.tag][0]
@@ -821,10 +840,11 @@ def from_cml(file_name):
         m.update()
         return m
     except AttributeError:
-        msg = ('%s is not a valid cml-formatted molecule. Stopping.' %file_name)
+        msg = ('%s is not a valid cml-formatted molecule. Stopping.' % file_name)
         raise RuntimeError(msg)
 
 # Utility methods for get_Morgan_equivalencies that aren't molecule methods
+
 
 def rank(weights):
     '''
@@ -843,6 +863,7 @@ def rank(weights):
     ret = [i[1] for i in sorted(working_list_2)]
     return ret
 
+
 def rank_until_converged(initial_ranks, all_ids_neighbours):
     '''
     Updates the ranking in a Morgan algorithm
@@ -857,5 +878,6 @@ def rank_until_converged(initial_ranks, all_ids_neighbours):
         new_ranks = rank(weights)
         iteration_count += 1
         if iteration_count > 1000:
-            raise RuntimeError, 'Modified Morgan symmetry-detection algorithm algorithm did not converge in 1000 iterations. Stopping...'
+            msg = 'Symmetry-detection algorithm did not converge in 1000 iterations.'
+            raise RuntimeError(msg)
     return new_ranks
