@@ -68,12 +68,14 @@ class atom(object):
         distance_matrix = self.mol.distances
         idx_self = self.get_id()
         all_away_neighbours = []
-        if len(other_ids) == 0: #Not sure if this should raise an error or behave like this
-            return [i for i in range(len(self.mol.atoms)) if self.mol.distances[i][idx_self]]
+        if len(other_ids) == 0:
+            return [i for i in range(len(self.mol.atoms))
+                    if self.mol.distances[i][idx_self]]
         for each_idx_atom in range(len(self.mol.atoms)):
             distance_to_others = min([distance_matrix[each_idx_atom][each_idx_other]
                                       for each_idx_other in other_ids])
-            if distance_matrix[each_idx_atom][idx_self] <= distance_to_others and self.mol.distances[each_idx_atom][idx_self]:
+            if (distance_matrix[each_idx_atom][idx_self] <= distance_to_others
+                    and self.mol.distances[each_idx_atom][idx_self]):
                 all_away_neighbours.append(each_idx_atom)
         return all_away_neighbours
 
@@ -139,7 +141,7 @@ class atom(object):
         elif style == 'gms':
             prefix = periodic_list[self.num].ljust(10) + str(self.num) + '.0'
         else:
-            raise ValueError, '%s is not a valid xyz format' %style
+            raise ValueError('%s is not a valid xyz format' % style)
         return '\t'.join([prefix] + [str(i) for i in self.coords])
 
     def get_hybridisation(self):
@@ -174,6 +176,6 @@ def from_cml(element):
     if element_label in periodic_table:
         num = periodic_table[element_label]['num']
     else:
-        num = 0 # Dummy atom
+        num = 0  # Dummy atom
     idx = id_to_py(element.get(lbl_id))
     return idx, atom(num, x, y, z)
