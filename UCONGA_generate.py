@@ -1,38 +1,39 @@
-from math import radians, degrees, sin, cos
+from math import radians, sin, cos
 import molecule
 import ring_lib
 import numpy
 import bisect
 import warnings
-from itertools import chain, cycle, product
+from itertools import chain, product
 import atom
 linear_tolerance = radians(170)
 
 
 def choose_scaling(mol):
-   '''
-   Selects a van der Waals scaling factor based on the steric crowding
-   An infinite linear alkane (average heavy valence=2) will have a high scaling factor
-   An infinite diamondoid (average heavy valence=4) will have a low scaling factor
-   '''
-   count = 0.0
-   tally = 0.0
-   for each_atom in mol.atoms:
-      hvy_val = each_atom.get_heavy_valence()
-      if hvy_val > 1:
-         count += 1
-         tally += hvy_val
-   average_steric = tally/count
-   strict_scaling = 0.9
-   loose_scaling = 0.7
-   scaling_delta = strict_scaling - loose_scaling
-   high_steric = 4.0 # Diamandoid
-   low_steric = 2.0 # Alkane
-   steric_delta = high_steric - low_steric
-   steric_percent = (average_steric - low_steric)/steric_delta
-   scaling_percent = 1.0 - steric_percent # High steric crowding => low cutoff
-   scaling = loose_scaling + (scaling_percent * scaling_delta)
-   return scaling
+    '''
+    Selects a van der Waals scaling factor based on the steric crowding
+    An infinite linear alkane (average heavy valence=2) will have a high scaling factor
+    An infinite diamondoid (average heavy valence=4) will have a low scaling factor
+    '''
+    count = 0.0
+    tally = 0.0
+    for each_atom in mol.atoms:
+        hvy_val = each_atom.get_heavy_valence()
+        if hvy_val > 1:
+            count += 1
+            tally += hvy_val
+    average_steric = tally / count
+    strict_scaling = 0.9
+    loose_scaling = 0.7
+    scaling_delta = strict_scaling - loose_scaling
+    high_steric = 4.0  # Diamandoid
+    low_steric = 2.0  # Alkane
+    steric_delta = high_steric - low_steric
+    steric_percent = (average_steric - low_steric) / steric_delta
+    scaling_percent = 1.0 - steric_percent  # High steric crowding => low cutoff
+    scaling = loose_scaling + (scaling_percent * scaling_delta)
+    return scaling
+
 
 def test_pair(pair, scaling):
     '''
@@ -42,7 +43,7 @@ def test_pair(pair, scaling):
         '''
     radii = [each.get_vdw() for each in pair]
     if 0.7 < scaling and set([i.num for i in pair]) in [set([1, 7]), set([1, 7])]:
-        scaling = 0.7 # There is the possibility of hydrogen bonding
+        scaling = 0.7  # There is the possibility of hydrogen bonding
     cutoff = scaling * sum(radii)
     distance = pair[0].get_distance(pair[1])
     if cutoff > distance:
@@ -63,18 +64,18 @@ def test_mol(mol, scaling):
         direct_path = []
         working_atom = atom_pair[0]
         end_id = each_pair[1]
-        neighbour_id = sorted(working_atom.get_bond_ids(), key = lambda x: mol.distances[end_id][x])[0]
+        neighbour_id = sorted(working_atom.get_bond_ids(), key=lambda x: mol.distances[end_id][x])[0]
         while neighbour_id != end_id:
             direct_path.append(neighbour_id)
             working_atom = mol.atoms[neighbour_id]
-            neighbour_id = sorted(working_atom.get_bond_ids(), key = lambda x: mol.distances[end_id][x])[0]
+            neighbour_id = sorted(working_atom.get_bond_ids(), key=lambda x: mol.distances[end_id][x])[0]
         can_change = True
         for each_bond in zip(direct_path[:-1], direct_path[1:]):
             if not test_rotatable(*[mol.atoms[i] for i in each_bond]):
                 can_change = False
         if can_change and test_pair(atom_pair, scaling) is False:
             return False
-    else: # Not technically necessary but clearer
+    else:  # Not technically necessary but clearer
         return True
 
 
@@ -86,7 +87,6 @@ def test_ring(atom_1, atom_2):
     '''
     ids = [each.get_id() for each in (atom_1, atom_2)]
     return not atom_1.mol.is_in_ring(*ids)
-
 
 
 def test_order(atom_1, atom_2):
@@ -155,10 +155,11 @@ def make_rotamer(mol, rotatable_bonds, new_values):
     current_torsions = [new_rotamer.get_torsion(*each)
                         for each in rotatable_bonds]
     for each_torsion, each_value in zip(rotatable_bonds,
-                                                    new_values):
+                                        new_values):
         new_rotamer.set_torsion(each_torsion[0], each_torsion[1],
-                                 each_torsion[2], each_torsion[3], each_value)
+                                each_torsion[2], each_torsion[3], each_value)
     return new_rotamer
+
 
 def is_symmetrical_rotor(each_bond, backbone, classes):
     '''
@@ -191,7 +192,7 @@ def is_symmetrical_rotor(each_bond, backbone, classes):
     return sym_rotor
 
 
-def find_older_sibling_ids(each_bond, each_id, backbone, classes, bonds_by_B_atom = {}):
+def find_older_sibling_ids(each_bond, each_id, backbone, classes, bonds_by_B_atom={}):
     '''
     Checks if a bond is part of a group of identical bonds
     and returns the ids of all identical bonds with lower ids
@@ -234,15 +235,16 @@ def find_max_angles(rotatable_bonds, centralness, backbone, classes, allow_inver
         C_children = backbone.atoms[each_bond[2]].search_away_from(each_bond[1])
         max.extend(find_older_sibling_ids(each_bond, idx, backbone, classes, curr_dict))
         if is_symmetrical_rotor(each_bond, backbone, classes):
-            max.append(360/len(C_children))
+            max.append(360 / len(C_children))
         if not max:
             max.append(360)
         if len(maxes) == 0 and allow_inversion:
-            max = [i/2 if type(i) != str else i for i in max]
+            max = [i / 2 if type(i) != str else i for i in max]
         maxes.append(max)
     return maxes
 
-def make_all_rotations(mol, final_delta, scaling, allow_inversion, fix=[], vary_rings = 2):
+
+def make_all_rotations(mol, final_delta, scaling, allow_inversion, fix=[], vary_rings=2):
     '''
     A generator that yields all valid rotamers of a molecule
     Scaling is a scaling factor as defined for test_pair and test_mol
@@ -251,7 +253,7 @@ def make_all_rotations(mol, final_delta, scaling, allow_inversion, fix=[], vary_
     Vary_rings can be 0 (hold all rings constant), 1 (reflect only), or 2 (full flip-of-fragments) (important for divide-and-conquer, may be useful for custom work)
     '''
     backbone, backbone_to_mol = mol.copy_without_H()
-    mol_to_backbone = {v:k for k, v in backbone_to_mol.items()}
+    mol_to_backbone = {v: k for k, v in backbone_to_mol.items()}
     rotatable_bonds = find_rotatable_bonds(backbone)
     for each_bond in fix:
         backbone_each_bond = sorted([mol_to_backbone[i] for i in each_bond])
@@ -268,7 +270,7 @@ def make_all_rotations(mol, final_delta, scaling, allow_inversion, fix=[], vary_
     classes = backbone.get_morgan_equivalencies()
     rotatable_bonds.sort(key=lambda x: sum([centralness[i] for i in x]))
     mol_rotatable_bonds = [[backbone_to_mol[i] for i in each]
-                       for each in rotatable_bonds]
+                           for each in rotatable_bonds]
     # Build list by rules
     # Atom labels (from centre to periphery): A-B-C-D
     maxes = find_max_angles(rotatable_bonds, centralness, backbone, classes, allow_inversion)
@@ -285,7 +287,7 @@ def make_all_rotations(mol, final_delta, scaling, allow_inversion, fix=[], vary_
             while curr_delta >= final_delta:
                 idx = 0
                 max_angles = [[curr_angles[int(t)] if type(t) == str else t for t in i]for i in maxes]
-                possible_angles = [curr_delta * each for each in range(int(360.0/curr_delta))]
+                possible_angles = [curr_delta * each for each in range(int(360.0 / curr_delta))]
                 all_possible_angles = [possible_angles[bisect.bisect_left(possible_angles, min(i))::-1]
                                        for i in max_angles]
                 while idx > -1:
@@ -304,26 +306,27 @@ def make_all_rotations(mol, final_delta, scaling, allow_inversion, fix=[], vary_
                                 if not(len(ref_deltas[0])) or numpy.less(numpy.abs(180 - numpy.abs(ref_conformers - test_curr_angles)), 180 - ref_deltas).any(axis=1).all():
                                     with warnings.catch_warnings() as w:
                                         # Any warning messages will come from weird molecule structures
-                                        # They will already have been seen in
+                                        # They will already have been seen
                                         curr_rotamer = make_rotamer(each_set_of_rings,
                                                                     mol_rotatable_bonds,
                                                                     [radians(i) for i in curr_angles])
                                     if test_mol(curr_rotamer, scaling):
                                         yield curr_rotamer
                                         if not(len(ref_deltas[0])):
-                                            ref_deltas = numpy.array([[curr_delta/2]])
+                                            ref_deltas = numpy.array([[curr_delta / 2]])
                                             ref_conformers = numpy.array([curr_angles])
                                         else:
-                                            ref_deltas = numpy.concatenate((ref_deltas, numpy.array([[curr_delta/2]])))
+                                            ref_deltas = numpy.concatenate((ref_deltas, numpy.array([[curr_delta / 2]])))
                                             ref_conformers = numpy.concatenate((ref_conformers, numpy.array([curr_angles])))
 
                         else:
                             max_angles[idx + 1] = [curr_angles[int(t)] if type(t) == str else t
                                                    for t in maxes[idx + 1]]
-                            all_possible_angles[idx+1] = possible_angles[bisect.bisect_left(possible_angles,
+                            all_possible_angles[idx + 1] = possible_angles[bisect.bisect_left(possible_angles,
                                                                                             min(max_angles[idx + 1]))::-1]
                             idx += 1
                 curr_delta /= 2
+
 
 ### Divide-and-conquer functions
 def divide_linear(mol, split):
@@ -344,6 +347,7 @@ def divide_linear(mol, split):
         mol.update()
     return group_ids
 
+
 def group_rotatable_bonds(mol):
     '''
     Helper function for divide_natural
@@ -357,7 +361,7 @@ def group_rotatable_bonds(mol):
         new_group = []
         while q:
             working = q.pop()
-            rems = [j for j in rbs if working[0] in j or working [1] in j]
+            rems = [j for j in rbs if working[0] in j or working[1] in j]
             q.extend(rems)
             for i in rems:
                 rbs.remove(i)
@@ -383,6 +387,7 @@ def group_rotatable_bonds(mol):
             rb_id_groups.append(new_group)
     return rb_id_groups
 
+
 def attach_rigid_linkers(rotatable_bonds, mol):
     rotatable_sets = [set(chain(*g)) for g in rotatable_bonds]
     group_ids = []
@@ -398,6 +403,7 @@ def attach_rigid_linkers(rotatable_bonds, mol):
             working_idx += 1
         group_ids.append(each_tmp)
     return group_ids
+
 
 def recombine_fragments(fragment_id_grps, mol, num_bonds_in_frag):
     combined_groups = []
@@ -438,6 +444,7 @@ def recombine_fragments(fragment_id_grps, mol, num_bonds_in_frag):
                     combined_groups.append(list(each_base_group))
     return [list(i) for i in combined_groups]
 
+
 def divide_natural(mol, split):
     rot_bond_id_grps = group_rotatable_bonds(mol)
     group_sizes = [len(i) for i in rot_bond_id_grps]
@@ -445,7 +452,8 @@ def divide_natural(mol, split):
     recombined_id_grps = recombine_fragments(fragment_id_grps, mol, group_sizes)
     return recombined_id_grps
 
-#Return the return lists
+
+# Return the return lists
 def recombine(base_mol, group_conformers, subset_rotatable, subset_to_mol):
     count = 1
     for each_set in product(*group_conformers):
@@ -454,28 +462,29 @@ def recombine(base_mol, group_conformers, subset_rotatable, subset_to_mol):
         nvs = []
         # Read off the rotatable bonds from each element
         for each_mol, each_bonds, each_trans in zip(each_set, subset_rotatable, subset_to_mol):
-            to_make = {tuple([each_trans[j] for j in i]):each_mol.get_torsion(*i) for i in each_bonds}
+            to_make = {tuple([each_trans[j] for j in i]): each_mol.get_torsion(*i) for i in each_bonds}
             rbs += to_make.keys()
             nvs += to_make.values()
         # combine them into a base conformer
         recombined_mol = make_rotamer(base_mol, rbs, nvs)
         yield recombined_mol
 
-def divide_and_conquer(mol, final_detla, scaling, allow_inversion, split = [], vary_rings = 1):
+
+def divide_and_conquer(mol, final_detla, scaling, allow_inversion, split=[], vary_rings=1):
     if not split:
         group_ids = divide_natural(mol, split)
     else:
         group_ids = divide_linear(mol, split)
     group_mols = [mol.copy_subset(i) for i in group_ids]
     mol_to_subset = [{q: i.index(q) for q in range(len(mol.atoms)) if q in i} for i in group_ids]
-    subset_to_mol = [{v:k for k, v in i.items()} for i in mol_to_subset]
+    subset_to_mol = [{v: k for k, v in i.items()} for i in mol_to_subset]
     # Cap broken bonds with dummy atoms to guarantee that rotatable bonds stay rotatable
     for each_group, each_mts, each_stm in zip(group_mols, mol_to_subset, subset_to_mol):
         tmp = [i for i in each_group.atoms]
         for each_subgroup_atom in tmp:
             each_mol_atom = mol.atoms[each_stm[each_subgroup_atom.get_id()]]
             if len(each_mol_atom.get_bond_ids()) > len(each_subgroup_atom.get_bond_ids()):
-                missing_neighbour = [ i for i in each_mol_atom.get_bond_ids() if i not in each_mts]
+                missing_neighbour = [i for i in each_mol_atom.get_bond_ids() if i not in each_mts]
                 for each_missing_id in missing_neighbour:
                     each_group.add_atom(atom.atom(0, *mol.atoms[each_missing_id].coords))
                     each_group.add_bond(each_subgroup_atom.get_id(), len(each_group.atoms) - 1, 1)
@@ -503,7 +512,7 @@ def divide_and_conquer(mol, final_detla, scaling, allow_inversion, split = [], v
     for each_subset, each_fix in zip(group_mols, sub_fix):
         base_ensemble = [q for q in make_all_rotations(each_subset, final_detla, scaling, allow_inversion, each_fix, False)]
         group_conformers.append(base_ensemble)
-        allow_inversion = False # Only the first subgroup should have its first bond restricted
+        allow_inversion = False  # Only the first subgroup should have its first bond restricted
     # Recombine
     for recombined_mol in recombine(mol, group_conformers, sub_rotated, subset_to_mol):
         count = 0
@@ -539,7 +548,7 @@ if __name__ == '__main__':
     a_help = 'Avoid using divide-and-conquer even when the molecule has more than 5 rotatable bonds (by default, the divide-and-conquer algoriothm is used for molecules with more than 5 rotatable bonds.)'
     b_help = 'Two atomic IDs (1-indexed) defining a bond to be broken for divide-and-conquer. This is ignored if -a is specified. Can be repeated. If unspecified, the molecule is broken at all multiple bonds and rings.'
     parser = argparse.ArgumentParser(description=description,
-                            formatter_class=argparse.RawDescriptionHelpFormatter)
+                                     formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('-s', '--scaling', help=scaling_help, type=float,
                         default=None)
     parser.add_argument('-d', '--delta', help=delta_help, type=int, default=30)
@@ -568,13 +577,13 @@ if __name__ == '__main__':
         elif args.output_format == 'gauss':
             base_file_name = os.path.splitext(base_file_name)[0] + '.gjf'
         elif args.output_format != 'cml':
-            base_file_name= os.path.splitext(base_file_name)[0] + '.inp'
+            base_file_name = os.path.splitext(base_file_name)[0] + '.inp'
     else:
         base_file_name = args.output_name.replace('*', '{0}')
     if '{0}' not in base_file_name:
         raise(ValueError, "No wildcard in output file namer")
     if args.scaling is None:
-      args.scaling = choose_scaling(mol)
+        args.scaling = choose_scaling(mol)
     if args.scaling < 0 or args.scaling > 1:
         raise(ValueError, "van der Waals scaling factor not in 0<s<1)")
     if len(find_rotatable_bonds(mol)) < 5 or args.avoid_division:
@@ -588,10 +597,10 @@ if __name__ == '__main__':
         if args.break_at:
             fix_or_split = [[i - 1 for i in pair]for pair in args.break_at]
     for idx, each_conformer in enumerate(conf_gen_func(mol, args.delta,
-                                                            args.scaling,
-                                                            args.allow_inversion,
-                                                            fix_or_split,
-                                                            vary_rings),
+                                                       args.scaling,
+                                                       args.allow_inversion,
+                                                       fix_or_split,
+                                                       vary_rings),
                                          1):
         with open(base_file_name.format(idx), 'w') as out_file:
             if args.output_format == 'cml':
