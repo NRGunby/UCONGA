@@ -736,10 +736,7 @@ class molecule(object):
         new_mol = molecule(hless_new_atoms)
         for each_idx_row, each_row in enumerate(self.bonds):
             for each_val_idx, each_val in enumerate(each_row):
-                new = []
-                for each in (each_idx_row, each_val_idx):
-                    new.append(trans[each])
-                new.append([each_val, False])
+                new = [trans[each_idx_row], trans[each_val_idx], each_val, False]
                 if -1 not in new and each_val > 0:
                     new_mol.add_bond(*new)
         new_mol.update()
