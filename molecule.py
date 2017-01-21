@@ -334,8 +334,7 @@ class molecule(object):
                 each_idx_2, n_bonds_in_chain = dc
                 atoms = []
                 for i in (each_idx_1, each_idx_2):
-
-                atoms.append((self.atoms[i], list(self.bonds[i]).index(2.0)))
+                    atoms.append((self.atoms[i], list(self.bonds[i]).index(2.0)))
                 ends = [p[0].search_away_from(p[1]) for p in atoms]
                 lengths = [len(k) for k in ends]
                 if lengths[0] > 2 or lengths[1] > 2 or 0 in lengths:
