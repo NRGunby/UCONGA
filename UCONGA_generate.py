@@ -64,11 +64,13 @@ def test_mol(mol, scaling):
         direct_path = []
         working_atom = atom_pair[0]
         end_id = each_pair[1]
-        neighbour_id = sorted(working_atom.get_bond_ids(), key=lambda x: mol.distances[end_id][x])[0]
+        neighbour_id = sorted(working_atom.get_bond_ids(),
+                              key=lambda x: mol.distances[end_id][x])[0]
         while neighbour_id != end_id:
             direct_path.append(neighbour_id)
             working_atom = mol.atoms[neighbour_id]
-            neighbour_id = sorted(working_atom.get_bond_ids(), key=lambda x: mol.distances[end_id][x])[0]
+            neighbour_id = sorted(working_atom.get_bond_ids(),
+                                  key=lambda x: mol.distances[end_id][x])[0]
         can_change = True
         for each_bond in zip(direct_path[:-1], direct_path[1:]):
             if not test_rotatable(*[mol.atoms[i] for i in each_bond]):
@@ -107,17 +109,18 @@ def test_interesting(atom_1, atom_2):
     '''
     ats = [atom_1, atom_2]
     this_mol = atom_1.mol
-    heavy_neighbours = [[j for j in each.search_away_from(other.get_id()) if this_mol.atoms[j].num != 1]
+    heavy_neighbours = [[j for j in each.search_away_from(other.get_id())
+                         if this_mol.atoms[j].num != 1]
                         for each, other in zip(ats, ats[::-1])]
     # Do both ends have heavy neighbours?
     if 0 in [len(i) for i in heavy_neighbours]:
         return False
     # Is either end nearly linear?
-    elif True in [len(i) == 1 and abs(this_mol.get_angle(i[0], each.get_id(), other.get_id())) > linear_tolerance
-                  for i, each, other in zip(heavy_neighbours, ats, ats[::-1])]:
-        return False
-    else:
-        return True
+    for i, each, other in zip(heavy_neighbours, ats, ats[::-1]):
+        if len(i) == 1 and abs(this_mol.get_angle(i[0], each.get_id(), other.get_id())) > linear_tolerance:
+            return False
+    # Well, it's not uninteresting
+    return True
 
 
 def test_rotatable(atom_1, atom_2):
@@ -169,9 +172,11 @@ def is_symmetrical_rotor(each_bond, backbone, classes):
     '''
     C_children = backbone.atoms[each_bond[2]].search_away_from(each_bond[1])
     sym_rotor = False
-    if len(C_children) > 1 and len(set([classes[i] for i in C_children])) == 1 and backbone.atoms[C_children[0]].num > 0:
+    if (len(C_children) > 1 and len(set([classes[i] for i in C_children])) == 1
+         and backbone.atoms[C_children[0]].num > 0):
         all_D_children = backbone.atoms[each_bond[3]].get_bond_ids()
-        if len(all_D_children) == 1 or False not in [backbone.is_in_ring(i, each_bond[3]) for i in all_D_children]:
+        if (len(all_D_children) == 1 or
+             False not in [backbone.is_in_ring(i, each_bond[3]) for i in all_D_children]):
             sym_rotor = True
             # For a n-sided regular polygon inscribed in a unit circle, for any vertex
             # the product of the distances to all other vertices is n
@@ -286,7 +291,8 @@ def make_all_rotations(mol, final_delta, scaling, allow_inversion, fix=[], vary_
             ref_deltas = numpy.array([[]])
             while curr_delta >= final_delta:
                 idx = 0
-                max_angles = [[curr_angles[int(t)] if type(t) == str else t for t in i]for i in maxes]
+                max_angles = [[curr_angles[int(t)] if type(t) == str else t for t in i]
+                              for i in maxes]
                 possible_angles = [curr_delta * each for each in range(int(360.0 / curr_delta))]
                 all_possible_angles = [possible_angles[bisect.bisect_left(possible_angles, min(i))::-1]
                                        for i in max_angles]
@@ -303,7 +309,9 @@ def make_all_rotations(mol, final_delta, scaling, allow_inversion, fix=[], vary_
                                 # In a modulo distance with radix r, to see if a and b are closer than d, use the formula:
                                 # |(r/2) - | a - b | | > ( (r/2) - d)
                                 # Here r = 2*pi and d is in the ref_deltas column vector
-                                if not(len(ref_deltas[0])) or numpy.less(numpy.abs(180 - numpy.abs(ref_conformers - test_curr_angles)), 180 - ref_deltas).any(axis=1).all():
+                                diff = 180 - numpy.abs(ref_conformers - test_curr_angles)
+                                if not((len(ref_deltas[0])) or
+                                       numpy.less(numpy.abs(diff), 180 - ref_deltas).any(axis=1).all()):
                                     with warnings.catch_warnings() as w:
                                         # Any warning messages will come from weird molecule structures
                                         # They will already have been seen
@@ -339,7 +347,8 @@ def divide_linear(mol, split):
         mol.bonds[j][i] = 0
         mol.update()
     # Now find the subgroups
-    group_ids = set([tuple(sorted([i] + mol.atoms[i].all_neighbours_away_from())) for i in chain(*split)])
+    group_ids = set([tuple(sorted([i] + mol.atoms[i].all_neighbours_away_from()))
+                     for i in chain(*split)])
     # Repair the main mol
     for i in repair:
         mol.bonds[i[0]][i[1]] = i[2]
@@ -375,7 +384,8 @@ def group_rotatable_bonds(mol):
                 for each_bond in new_group:
                     if each_bond == each_split:
                         pass
-                    elif sum([mol.distances[i][each_split[0]] for i in each_bond]) < sum([mol.distances[i][each_split[1]] for i in each_bond]):
+                    elif (sum([mol.distances[i][each_split[0]] for i in each_bond])
+                          < sum([mol.distances[i][each_split[1]] for i in each_bond])):
                         g1.append(each_bond)
                     else:
                         g2.append(each_bond)
@@ -399,7 +409,8 @@ def attach_rigid_linkers(rotatable_bonds, mol):
         while working_idx < len(each_tmp):
             curr_atom = mol.atoms[each_tmp[working_idx]]
             neighbour_ids = [i for i in curr_atom.get_bond_ids() if i not in each_tmp]
-            each_tmp.extend([i for i in neighbour_ids if not test_rotatable(mol.atoms[i], curr_atom)])
+            each_tmp.extend([i for i in neighbour_ids
+                             if not test_rotatable(mol.atoms[i], curr_atom)])
             working_idx += 1
         group_ids.append(each_tmp)
     return group_ids
@@ -476,7 +487,8 @@ def divide_and_conquer(mol, final_detla, scaling, allow_inversion, split=[], var
     else:
         group_ids = divide_linear(mol, split)
     group_mols = [mol.copy_subset(i) for i in group_ids]
-    mol_to_subset = [{q: i.index(q) for q in range(len(mol.atoms)) if q in i} for i in group_ids]
+    mol_to_subset = [{q: i.index(q) for q in range(len(mol.atoms)) if q in i}
+                     for i in group_ids]
     subset_to_mol = [{v: k for k, v in i.items()} for i in mol_to_subset]
     # Cap broken bonds with dummy atoms to guarantee that rotatable bonds stay rotatable
     for each_group, each_mts, each_stm in zip(group_mols, mol_to_subset, subset_to_mol):
@@ -484,7 +496,8 @@ def divide_and_conquer(mol, final_detla, scaling, allow_inversion, split=[], var
         for each_subgroup_atom in tmp:
             each_mol_atom = mol.atoms[each_stm[each_subgroup_atom.get_id()]]
             if len(each_mol_atom.get_bond_ids()) > len(each_subgroup_atom.get_bond_ids()):
-                missing_neighbour = [i for i in each_mol_atom.get_bond_ids() if i not in each_mts]
+                missing_neighbour = [i for i in each_mol_atom.get_bond_ids()
+                                     if i not in each_mts]
                 for each_missing_id in missing_neighbour:
                     each_group.add_atom(atom.atom(0, *mol.atoms[each_missing_id].coords))
                     each_group.add_bond(each_subgroup_atom.get_id(), len(each_group.atoms) - 1, 1)
