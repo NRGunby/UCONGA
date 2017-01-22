@@ -451,12 +451,13 @@ class molecule(object):
                     # It find the in-ring atoms they are bonded to.
                     # The actual doubly-bonded stereocentres are found through the
                     # later attempts to connect everything
-                    end_sym_classes = [sym_classes[i] for i in
+                    if len(other_neighbours) == 1 and self.bonds[each_idx][other_neighbours[0]] == 2:
+                        end_sym_classes = [sym_classes[i] for i in
                                        self.atoms[self.follow_dbl_chain(each_idx)[0]].get_bond_ids()]
-                    dbl_para = (len(other_neighbours) == 1 and
-                                self.bonds[each_idx][other_neighbours[0]] == 2 and
-                                len(set(end_sym_classes)) == len(end_sym_classes) and
-                                len(end_sym_classes) > 1)
+                        dbl_para = (len(set(end_sym_classes)) == len(end_sym_classes) and
+                                    len(end_sym_classes) > 1)
+                    else:
+                        dbl_para = False
                     tetrahedral_para = (len(set([sym_classes[x] for x in
                                                  other_neighbours])) == 2)
                     if dbl_para or tetrahedral_para:
@@ -548,7 +549,7 @@ class molecule(object):
                 head_hp_subs = []
                 for i in head.get_bond_ids():
                     if (i not in all_ids_ring_atoms) and (self.bonds[head_id][i] == 1):
-                        head_hp_subs.append(x)
+                        head_hp_subs.append(i)
                 head_hp_subs.sort(key=lambda x: sym_classes[x])
                 head_hp_sub = head_hp_subs[-1]
                 tail = list(group)[1:]
