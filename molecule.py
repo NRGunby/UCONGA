@@ -336,7 +336,7 @@ class molecule(object):
                     atoms.append((self.atoms[i], list(self.bonds[i]).index(2.0)))
                 ends = [p[0].search_away_from(p[1]) for p in atoms]
                 lengths = [len(k) for k in ends]
-                if lengths[0] not it (1, 2) or lengths[1] not in (1, 2):
+                if lengths[0] not in (1, 2) or lengths[1] not in (1, 2):
                     # Either this is a carbonyl etc with no stereochemistry or
                     # this is not an organic double bond as one end has
                     # too many substituents so

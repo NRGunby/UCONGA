@@ -167,7 +167,7 @@ def base_ring_variations(base_mol, each_ring_system):
                 break
             substituents = []
             for i in each_pair_to_flip + junction:
-                for j in chain(*[new_mol.atoms[i].all_neighbours_away_from(*each_ring_system):
+                for j in chain(*new_mol.atoms[i].all_neighbours_away_from(*each_ring_system):
                     substituents.append(j)
             atoms_reference = []
             for i, j in zip(junction, each_pair_to_flip):
