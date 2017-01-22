@@ -46,7 +46,9 @@ def canonicalise(mol):
     for each_id, each_bond in enumerate(rb):
         if centralness[each_bond[0]] > centralness[each_bond[-1]]:
             each_bond = each_bond[::-1]
-        elder_bond_ids = [int(i) for i in UCONGA.find_older_sibling_ids(each_bond, each_id, mol, classes, new_dict)]
+        elder_bond_ids = []
+        for i in UCONGA.find_older_sibling_ids(each_bond, each_id, mol, classes, new_dict):
+            elder_bond_ids.append(int(i))
         app = [each_bond]
         for i in elder_bond_ids:
             i_bond = rb[i]
@@ -58,8 +60,11 @@ def canonicalise(mol):
     # Remove the incomplete groups
     working_idx = 0
     while working_idx < len(partial_symmetry_groups) - 1:
-        if True in [partial_symmetry_groups[working_idx][0] in i for i in partial_symmetry_groups[working_idx + 1:]]:
-            del partial_symmetry_groups[working_idx]
+        to_test = []
+        for i in partial_symmetry_groups[working_idx + 1:]:
+            if partial_symmetry_groups[working_idx][0] in i:
+                del partial_symmetry_groups[working_idx]
+                break
         else:
             working_idx += 1
     for each_whole_group in partial_symmetry_groups:
@@ -106,7 +111,8 @@ def align_inertial(mol):
 
     Returns nothing, it modifies the molecule in-place
     '''
-    c_weights = numpy.array([[constants.periodic_table[constants.periodic_list[i.num]]['mass']]for i in mol.atoms])
+    c_weights = numpy.array([[constants.periodic_table[constants.periodic_list[i.num]]['mass']]
+                             for i in mol.atoms])
     r_weights = c_weights.T[0]
     c_coords = mol.coord_matrix()
     # centre on the COM
@@ -116,7 +122,8 @@ def align_inertial(mol):
     c_coords -= com
     intertia_mat = calculate_I_tensor(c_coords, r_weights)
     moments, axes = numpy.linalg.eig(intertia_mat)
-    sorted_axes = numpy.array([i[1] for i in sorted([(j, k) for j, k in zip(moments, axes)])])
+    tmp = [(j, k) for j, k in zip(moments, axes)]
+    sorted_axes = numpy.array([i[1] for i in sorted(tmp)])
     c_new_coords = sorted_axes.T.dot(c_coords.T).T
     for a, c in zip(mol.atoms, c_new_coords):
         a.coords = c
@@ -145,7 +152,8 @@ def prepare_angles(important_torsions, mols, allow_inversion):
     '''
         A utility function for reading data
         '''
-    tc_angles = [[mol.get_torsion(*torsion) for torsion in important_torsions] for mol in mols]
+    tc_angles = [[mol.get_torsion(*torsion) for torsion in important_torsions]
+                 for mol in mols]
     if allow_inversion:
         new_angles = []
         for each_mol in tc_angles:
@@ -190,7 +198,8 @@ def ch_cluster(data, method):
             warnings.warn('Clustering with %d clusters has too many degrees of freedom. Are some conformers degenerate?' % num_clusters, RuntimeWarning)
         else:
             counts = Counter(mapping)
-            ssb = sum([counts[idx] * (numpy.linalg.norm(mean - i) ** 2) for idx, i in enumerate(codebook)])
+            ssb = sum([counts[idx] * (numpy.linalg.norm(mean - i) ** 2)
+                       for idx, i in enumerate(codebook)])
             ch_criterion = ((num_points - num_clusters) * ssb) / ((num_clusters - 1) * total_distortion)
             all_data.append([ch_criterion, mapping, point_distortions])
     return all_data
@@ -233,7 +242,8 @@ def cluster_hierarchy(data, k):
     mapped_points.sort(key=lambda x: x[0])
     clusters = [[j[1] for j in i[1]] for i in groupby(mapped_points, key=lambda x: x[0])]
     codebook = numpy.array([numpy.array(i).mean(axis=0) for i in clusters])
-    total_distortion = sum([numpy.linalg.norm(i[1] - codebook[i[0] - 1]) for i in mapped_points])
+    total_distortion = sum([numpy.linalg.norm(i[1] - codebook[i[0] - 1])
+                            for i in mapped_points])
     return mapping, codebook, total_distortion, point_distortions
 
 
@@ -381,8 +391,11 @@ def parallel_coordinates(data, torsion_labels, categories, allow_inversion, ax=N
                 for i in range(max(categories) + 1)]
     for each_cluster in clusters:
         # To average angles, they need to be converted to sines and cosines:
-        cart_conformers = numpy.array([[i for i in chain(*[(math.sin(angle), math.cos(angle)) for angle in mol])]
-                                       for mol in each_cluster])
+        tmp = []
+        for mol in each_cluster:
+            for angle in mol:
+                tmp.extend((math.sin(angle), math.cos(angle)))
+        cart_conformers = numpy.array(tmp)
         average = numpy.mean(cart_conformers, axis=0)
         center = [math.atan2(s, c) for s, c in zip(average[::2], average[1::2])]
         all_centers.append(center)

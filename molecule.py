@@ -250,9 +250,8 @@ class molecule(object):
         for each_ring in self.rings:
             bond_orders = [self.bonds[j][k] for j, k in zip(each_ring[:-1], each_ring[1:])]
             alternating_bond_orders = (bond_orders[1::2], bond_orders[::2])
-            disordered_alternating_bond_orders = set([frozenset(q)
-                                                      for q in alternating_bond_orders])
-            if disordered_alternating_bond_orders == reference:
+            to_test = set([frozenset(q) for q in alternating_bond_orders])
+            if to_test == reference:
                 for idx_at_1, idx_at_2 in zip(each_ring[:-1], each_ring[1:]):
                     self.aromatised_bonds.append((idx_at_1, idx_at_2,
                                                  self.bonds[idx_at_1][idx_at_2]))
@@ -337,7 +336,7 @@ class molecule(object):
                     atoms.append((self.atoms[i], list(self.bonds[i]).index(2.0)))
                 ends = [p[0].search_away_from(p[1]) for p in atoms]
                 lengths = [len(k) for k in ends]
-                if lengths[0] > 2 or lengths[1] > 2 or 0 in lengths:
+                if lengths[0] not it (1, 2) or lengths[1] not in (1, 2):
                     # Either this is a carbonyl etc with no stereochemistry or
                     # this is not an organic double bond as one end has
                     # too many substituents so
@@ -345,7 +344,11 @@ class molecule(object):
                     pass
                 else:
                     if each_idx_1 < each_idx_2:
-                        if [len(set([sym_classes[i] for i in j])) == len(j) for j in ends] == [True, True]:
+                        should_yield = True
+                        for j in ends:
+                            if len(set([sym_classes[i] for i in j])) != len(j):
+                                should_yield = False
+                        if should_yield:
                             yield n_bonds_in_chain, ends, each_idx_1, each_idx_2
 
     def assign_dbl_stereochem(self, sym_classes):
@@ -448,11 +451,12 @@ class molecule(object):
                     # It find the in-ring atoms they are bonded to.
                     # The actual doubly-bonded stereocentres are found through the
                     # later attempts to connect everything
-
+                    end_sym_classes = [sym_classes[i] for i in
+                                       self.atoms[self.follow_dbl_chain(each_idx)[0]].get_bond_ids()]
                     dbl_para = (len(other_neighbours) == 1 and
                                 self.bonds[each_idx][other_neighbours[0]] == 2 and
-                                len(set([sym_classes[i] for i in self.atoms[self.follow_dbl_chain(each_idx)[0]].get_bond_ids()])) == len([sym_classes[i] for i in self.atoms[self.follow_dbl_chain(each_idx)[0]].get_bond_ids()]) and
-                                len([sym_classes[i] for i in self.atoms[self.follow_dbl_chain(each_idx)[0]].get_bond_ids()]) > 1)
+                                len(set(end_sym_classes)) == len(end_sym_classes) and
+                                len(end_sym_classes) > 1)
                     tetrahedral_para = (len(set([sym_classes[x] for x in
                                                  other_neighbours])) == 2)
                     if dbl_para or tetrahedral_para:
@@ -541,9 +545,10 @@ class molecule(object):
             for each_at_idx in range(l):
                 head = group[0]
                 head_id = head.get_id()
-                head_hp_subs = filter(lambda x: ((x not in all_ids_ring_atoms)
-                                                 and (self.bonds[head_id][x] == 1)),
-                                      head.get_bond_ids())
+                head_hp_subs = []
+                for i in head.get_bond_ids():
+                    if (i not in all_ids_ring_atoms) and (self.bonds[head_id][i] == 1):
+                        head_hp_subs.append(x)
                 head_hp_subs.sort(key=lambda x: sym_classes[x])
                 head_hp_sub = head_hp_subs[-1]
                 tail = list(group)[1:]

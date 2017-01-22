@@ -101,12 +101,14 @@ def find_ring_conformers(base_mol, each_ring_system, full_flip=2):
         for each_base_conformer in base_ring_variations(base_mol, each_ring_system):
             torsions = [int(degrees(each_base_conformer.get_torsion(*i)))
                         for i in all_dihedrals]
-            if (torsions not in found_conformers) and ([-1 * i for i in torsions] not in found_conformers):
+            if ((torsions not in found_conformers) and
+                 ([-1 * i for i in torsions] not in found_conformers)):
                 ret.append(each_base_conformer)
                 found_conformers.append(torsions)
                 mirror_image = flip_ring(each_base_conformer, each_ring_system)
                 torsions = [int(degrees(mirror_image.get_torsion(*i))) for i in all_dihedrals]
-                if (torsions not in found_conformers) and ([-1 * i for i in torsions] not in found_conformers):
+                if ((torsions not in found_conformers) and
+                     ([-1 * i for i in torsions] not in found_conformers)):
                     ret.append(mirror_image)
                     found_conformers.append(torsions)
             idx += 1
@@ -143,29 +145,38 @@ def base_ring_variations(base_mol, each_ring_system):
     z_to_precision = [abs(int(round(100*i[2]))) for i in ring_coords]
     if len(set(z_to_precision)) > 1 and len(each_ring_system) > 4:
         # Make a list of two-atom groups in the ring
-        tmp_neighbour_pairs = [[frozenset([i, j]) for j in aligned_mol.atoms[i].get_bond_ids() if j in each_ring_system]
+        tmp_neighbour_pairs = [[frozenset([i, j]) for j in aligned_mol.atoms[i].get_bond_ids()
+                                if j in each_ring_system]
                                for i in each_ring_system]
         neighbour_pairs = set([i for i in chain(*tmp_neighbour_pairs)])
         for each_pair_to_flip in neighbour_pairs:
             # The pair needs a distinct order, which frozensets don't
             each_pair_to_flip = list(each_pair_to_flip)
             new_mol = aligned_mol.copy()
-            junction = [i for i in chain(*[filter(lambda x: x in each_ring_system, new_mol.atoms[i].search_away_from(j))
-                                           for i, j in zip(each_pair_to_flip, each_pair_to_flip[::-1])])]
+            junction
+            for i, j in zip(each_pair_to_flip, each_pair_to_flip[::-1]):
+                for k in new_mol.atoms[i].search_away_from(j):
+                    if k in each_ring_system:
+                        junction.append(k)
             # Don't flip the ring at a ring junction
             if len(junction) != 2:
                 break
             # Don't flip atoms with pi-bonding
-            if base_mol.atoms[junction[0]].get_hybridisation() != 3 or base_mol.atoms[junction[1]].get_hybridisation() != 3:
+            if (base_mol.atoms[junction[0]].get_hybridisation() != 3 or
+                 base_mol.atoms[junction[1]].get_hybridisation() != 3):
                 break
-            substituents = [i for i in chain(*[new_mol.atoms[i].all_neighbours_away_from(*each_ring_system)
-                                               for i in each_pair_to_flip + junction])]
-            atoms_reference = [i for i in
-                               chain(*[filter(lambda x: x in each_ring_system, new_mol.atoms[i].search_away_from(j))
-                                       for i, j in zip(junction, each_pair_to_flip)])]
-            translate_by = sum([new_mol.atoms[i].coords for i in junction])/-2.0
+            substituents = []
+            for i in each_pair_to_flip + junction:
+                for j in chain(*[new_mol.atoms[i].all_neighbours_away_from(*each_ring_system):
+                    substituents.append(j)
+            atoms_reference = []
+            for i, j in zip(junction, each_pair_to_flip):
+                for k in new_mol.atoms[i].search_away_from(j):
+                    if k in each_ring_system:
+                        atoms_reference.append(k)
+            translate_by = sum([new_mol.atoms[i].coords for i in junction]) / -2.0
             new_mol.translate(translate_by)
-            reference_point = sum([new_mol.atoms[i].coords for i in atoms_reference])/2.0
+            reference_point = sum([new_mol.atoms[i].coords for i in atoms_reference]) / 2.0
             reflect_by = linalg.reflection_plane(new_mol.atoms[junction[0]].coords, reference_point)
             for each_id in substituents + each_pair_to_flip:
                 each_atom = new_mol.atoms[each_id]
@@ -215,10 +226,10 @@ def flip_substituents(mol, each_ring_system, at_id):
         Nothing, this is a destructive method
     '''
     ring_atom = mol.atoms[at_id]
-    in_ring_neighbours = [mol.atoms[i] for i in filter(lambda x: x in each_ring_system,
-                                                       ring_atom.get_bond_ids())]
-    substituents = [mol.atoms[i] for i in
-                    ring_atom.all_neighbours_away_from(*[i.get_id() for i in in_ring_neighbours])]
+    in_ring_neighbours = [mol.atoms[i] for i in ring_atom.get_bond_ids()
+                          if i in each_ring_system]
+    neighbour_ids = [i.get_id() for i in in_ring_neighbours]
+    substituents = [mol.atoms[i] for i in ring_atom.all_neighbours_away_from(*neighbour_ids)]
     # Centre everything:
     translate_by = -1 * ring_atom.coords
     for i in in_ring_neighbours + substituents:
