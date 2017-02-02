@@ -17,9 +17,9 @@ class atom(object):
 
     def get_id(self):
         '''
-            Returns the id of a molecule in its molecule's *atoms*.
-            This is zero-based
-            '''
+        Accepts: Nothing
+        Returns: The zero-based ID of an atom in its molecule
+        '''
         if self.mol:
             if self.get_id_cache >= 0:
                 return self.get_id_cache
@@ -31,7 +31,8 @@ class atom(object):
 
     def get_bond_ids(self):
         '''
-        Returns the ids of all atoms bonded to this atom
+        Accepts: Nothing
+        Returns: A list of the ids of all atoms bonded to this atom
         '''
         if not self.ids_cache:
             idx_self = self.get_id()
@@ -42,7 +43,8 @@ class atom(object):
 
     def get_heavy_valence(self):
         '''
-        Returns the number of non-hydrogen atoms bonded to this atom
+        Accepts: Nothing
+        Returns: The number of non-hydrogen atoms bonded to this atom
         '''
         all_ids_bonded = self.get_bond_ids()
         heavy_valence = 0
@@ -53,7 +55,8 @@ class atom(object):
 
     def search_away_from(self, other_id):
         '''
-        Returns the ids of all neighbours except one
+        Accepts: the id of an atom bonded to this atom
+        Returns: a list of the ids of all other neighboring atoms
         '''
         ids_bonded = self.get_bond_ids()
         ids_bonded.remove(other_id)
@@ -61,9 +64,11 @@ class atom(object):
 
     def all_neighbours_away_from(self, *other_ids):
         '''
-        Returns all children of an atom
-        assuming the atoms with other_ids are its parents
-        That is, return all atoms closer to this then to the others
+        Accepts: a list of atom ids, which do not have to be bonded to this
+        Returns: a list of the ids of all atoms in the molecule closer to this
+                 atom than to those provided as the arguments
+        That is, it finds the children of this atom assuming those provided as
+        arguments are the parents
         '''
         distance_matrix = self.mol.distances
         idx_self = self.get_id()
@@ -81,39 +86,44 @@ class atom(object):
 
     def get_vdw(self):
         '''
-        Returns the van der Waals radius
-        This is probably breaking strict OO design, but OO strictness leads
-        to seriously crazy code (see openbabel)
+        Accepts: Nothing
+        Returns: the van der Waals radius of this atom's element in Angstroms
         '''
         return periodic_table[periodic_list[self.num]]['vdw']
 
     def get_vector(self, at2):
         '''
-        Returns the vector that will translate this to another atom
+        Accepts: another atom
+        Returns: the vector from this to the other as a numpy array
         '''
         return self.coords - at2.coords
 
     def get_distance(self, at2):
         '''
-        Returns the distance to another atom
+        Accepts: another atom
+        Returns: the distance to the other atom in Angstroms
         '''
         return numpy.linalg.norm(self.get_vector(at2))
 
     def copy(self):
         '''
-        Returns a copy of this atom **not** attached to any molecule
+        Accepts: Nothing
+        Returns: a copy of this atom **not** attached to any molecule
         '''
         return atom(self.num, *self.coords)
 
     def translate(self, vector):
         '''
-        Translate the atom by the supplied 3-vector
+        Accepts: A 3-vector as a numpy array
+        Returns: Nothing
+        Translates the atom by the supplied vector
         '''
         self.coords = self.coords + vector
 
     def to_cml(self):
         '''
-        Creates a cml atom element
+        Accepts: Nothing
+        Returns: a cml atom element representing this atom as an ETree element
         '''
         element = ET.Element(lbl_atom)
         labels = []
@@ -132,7 +142,13 @@ class atom(object):
 
     def to_xyz(self, style='xyz'):
         '''
-        Return a string representation of the atom suitable for an xyz file
+        Accepts: A style string, one of 'xyz', 'gauss', 'nw', 'gms'
+        Returns: A string representation of the atom in the specified format
+        Format string meaning:
+        xyz   => xyz file, OpenBabel dialect
+        gauss => Gaussian input file
+        nw    => nwchem input file
+        gms   => GAMESS input file
         '''
         if style in ['xyz', 'gauss']:
             prefix = periodic_list[self.num]
@@ -146,7 +162,8 @@ class atom(object):
 
     def get_hybridisation(self):
         '''
-        Returns the p element of an atom's hybridiation
+        Accepts: Nothing
+        Returns: the p element of an atom's hybridiation
         e.g. C_acetylene.get_hybridisation -> 1
         C_benzene.get_hybridisation -> 2
         C_methane.get_hybridisation -> 3
@@ -160,14 +177,17 @@ class atom(object):
 
     def rotate(self, matrix):
         '''
-        Rotate the atom by the supplied rotation matrix
+        Accepts: A 3D rotation matrix as a numpy array
+        Returns: Nothing
+        Rotates the atom by the supplied rotation matrix
         '''
         self.coords = matrix.dot(self.coords)
 
 
 def from_cml(element):
     '''
-    Parses a cml atom element
+    Accepts: a cml-format ETree element
+    Returns: an atom
     '''
     x = float(element.get(lbl_x))
     y = float(element.get(lbl_y))
