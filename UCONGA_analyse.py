@@ -24,6 +24,12 @@ from os import path
 
 
 def canonicalise(mol):
+    '''
+    Canonicalise a molecule with respect to nuclear permutational symmetry
+    For each symmetric group, choose the equivalent position that UCONGA_generate
+        would generate
+    '''
+    Accepts: a molecule object
     rb = UCONGA.find_rotatable_bonds(mol)
     centralness = [sum(i) for i in mol.distances]
     classes = mol.get_morgan_equivalencies()
@@ -82,10 +88,10 @@ def calculate_I_tensor(coords, weights):
     '''
     Calculate the inertia tensor of a molecule
 
-    Accepts a coordinate matrix
-            a list of atomic weights
+    Accepts: a coordinate matrix
+             a list of atomic weights
 
-    Returns the inertia tensor
+    Returns: the inertia tensor
     '''
     x = coords[:, 0]
     y = coords[:, 1]
@@ -107,9 +113,9 @@ def align_inertial(mol):
     The primary axis (highest moment) will be aligned to the z-axis,
     while the tertiary (lowest moment) axis will be aligned to the x-axis
 
-    Accepts a molecule
+    Accepts: a molecule
 
-    Returns nothing, it modifies the molecule in-place
+    Returns: nothing, it modifies the molecule in-place
     '''
     c_weights = numpy.array([[constants.periodic_table[constants.periodic_list[i.num]]['mass']]
                              for i in mol.atoms])
@@ -133,9 +139,10 @@ def find_bbox(mol):
     """
     Find the bounding box dimensions along the inertial axes
 
-    Accepts a molecule
+    Accepts: a molecule
 
-    Returns an array of lengths, from lowest to highest moment of inertia
+    Returns: The three bouding-box side lengths, from lowest to highest moment
+             of inertia, as a numpy array
     """
     align_inertial(mol)
     # Find the eliptical radii along the axes of inertia
@@ -150,8 +157,14 @@ def find_bbox(mol):
 
 def prepare_angles(important_torsions, mols, allow_inversion):
     '''
-        A utility function for reading data
-        '''
+    Read torsional data from a lost of molecules at once, in preparation for
+    torsion-based clustering
+    Accepts:
+        A list of lists of atom ids for torsions of interest
+        A list of molecules
+        Whether or not enantiomers should be trated as identical
+    Returns: A list of lists of torsion values for each molecule, in radians
+    '''
     tc_angles = [[mol.get_torsion(*torsion) for torsion in important_torsions]
                  for mol in mols]
     if allow_inversion:
@@ -172,12 +185,12 @@ def ch_cluster(data, method):
     calculate the Calinski-Harabasz Criterion for various k
     See Calinski and Harabasz., Commun. Stat., 1974, p 1
 
-    Accepts an array of data, with individual data points as the rows
-        and a function which takes that data and a number of clusters,
+    Accepts: an array of data, with individual data points as the rows
+            a function which takes that data and a number of clusters,
             and returns a list of each data points' cluster ids, the cluster centers,
             the total distortion, and a list of the distance from each point to its nearest center
 
-    Returns a list of tuples containg: the criterion
+    Returns: a list of tuples containg: the criterion
                                         a list of each conformer's cluster id
                                         a list of the distance from each conformer to its cluster center
     Note that the list starts for two clusters, as the criterion cannot be calulated for one
@@ -209,13 +222,13 @@ def cluster_kmeans(data, k):
     '''
     Performs k-means clustering on a numpy array of data.
 
-    Accepts an array of data, with individual data points as the rows
-            A number of clusters to make
+    Accepts: an array of data, with individual data points as the rows
+             The number of clusters to make
 
-    Returns a list of each data points' cluster ids
-            the cluster centers,
-            the total distortion,
-            a list of the distance from each point to its nearest center
+    Returns: a list of each data points' cluster ids
+             a list of the cluster centers,
+             the total distortion,
+             a list of the distances from each point to its nearest center
     '''
     whitened_data = scipy.cluster.vq.whiten(data)
     codebook, total_distortion = scipy.cluster.vq.kmeans(whitened_data, k, iter=50)
@@ -227,13 +240,13 @@ def cluster_hierarchy(data, k):
     '''
     Performs hierarchical clustering on a numpy array of data
 
-    Accepts an array of data, with individual data points as the rows
-    A number of clusters to make
+    Accepts: an array of data, with individual data points as the rows
+             The number of clusters to make
 
-    Returns a list of each data points' cluster ids
-    the cluster centers,
-    the total distortion,
-    a list of the distance from each point to its nearest center
+    Returns: a list of each data points' cluster ids
+             a list of the cluster centers,
+             the total distortion,
+             a list of the distances from each point to its nearest center
     '''
     distmat = scipy.spatial.distance.pdist(data)
     linkmat = scipy.cluster.hierarchy.linkage(distmat, method='average')
@@ -251,7 +264,12 @@ def choose_best_clustering(clustering):
     '''
     Choose the best cluster size according to the *first derivative* of the
     Calinski-Harabasz criterion
-    Accecpts a list of tuples of cluster details where the
+    Accecpts: a list of tuples of cluster details where the first item is the
+                        Calinski-Harabasz metric, the second item is the codebook,
+                        and the third item is the list of distances from points to
+                        the closest cluster centers
+    Returns:
+            The codebook and list of distances for the best clustering
     '''
     ch_criteria = [i[0] for i in clustering]
     if len(ch_criteria) == 1:
@@ -267,6 +285,14 @@ def choose_best_clustering(clustering):
 
 
 def reorder(lst, codebook):
+    '''
+    Reorders the items in a list according to a codebook
+    Accepts:
+        A list of items to reorder
+        A list of the indices they should be in
+    Returns
+        A new list
+    '''
     tmp = [i for i in zip(codebook, lst)]
     tmp.sort()
     return [i[1] for i in tmp]
@@ -277,6 +303,8 @@ def calc_rmsd(coords_1, coords_2):
     '''
     Calculates rmsd between two lists of coordinates
     No alignment is performed
+    Accepts: Two sets of coordinates as numpy arrays
+    Returns: The RMSD
     '''
     n = len(coords_1)
     assert n == len(coords_2)
@@ -288,6 +316,12 @@ def align(coords_1, coords_2, allow_inversion=True):
     '''
     Calculates a transformation matrix to minimise the rmsd between two sets of coordinates
     The rmsd is not calculated
+    Accepts:
+        Two sets of coordinates as numpy arrays
+        Whether or not inversion is allowed in the transformation
+    Returns:
+        A transformation matrix as a numpy array
+
     The transformation is a combination of rotations, reflections, and inversion
     This uses the Schonemann soltion to the orthogonal procrustes problem if inversion is allowed
     see Schonemann, Psychometrika 1966, p.1
@@ -311,6 +345,11 @@ def align(coords_1, coords_2, allow_inversion=True):
 def calc_min_rmsd(coords_1, coords_2, allow_inversion=True):
     '''
     Aligns the second set of coordinates to the first and then calculates the rmsd
+    Accepts:
+        Two sets of coordinates as numpy arrays
+        Whether or not inversion is allowed in the transformation
+    Returns:
+        The RMSD
     '''
     alignment = align(coords_1, coords_2, allow_inversion)
     aligned_1 = coords_1.dot(alignment)
@@ -319,7 +358,12 @@ def calc_min_rmsd(coords_1, coords_2, allow_inversion=True):
 
 def all_the_rmsds(molecules, allow_inversion=True):
     '''
-    Calculates all the rmsds in a collection of molecules
+    Calculates all the rmsds in a collection of molecules with pariwise alignment
+    Accepts:
+        A list of molecule objects
+        Whether or not inversion is allowed during the alignment
+    Returns:
+        A matrix of all the pairwise RMSDS
     '''
     l = len(molecules)
     rmsds = [[0 for j in range(l)] for i in range(l)]
@@ -344,6 +388,14 @@ def arrange_by_clustering(to_be_arranged, ordering):
 
 
 def bbox_scatter(points, labs, ax=None):
+    '''
+    Makes a scatter plot of the bounding boxes colored by clustering
+    Accepts:
+    A list of data points
+    A list of the cluster ids of each data point
+    An optional matplotlib axis
+    '''
+
     ax = ax if ax is not None else plt.gca()
     ax.set_title('Scatter plot of bounding-box clustering', size='x-large')
     ax.yaxis.set_ticks_position('left')
@@ -366,6 +418,17 @@ def bbox_scatter(points, labs, ax=None):
 
 
 def parallel_coordinates(data, torsion_labels, categories, allow_inversion, ax=None):
+    '''
+    Makes a parallel coordinates plot of the torsion angles colored by clustering
+    Attempts to make all cluster centers as visually close to each other as possible,
+    and all data points as visually close to their center as possible
+    Accepts:
+    A list of data points
+    A list of the torsion labels as strings
+    A list of the cluster ids of each data point
+    Whether or not enantiomers should be treated as identical
+    An optional matplotlib axis
+    '''
     ax = ax if ax is not None else plt.gca()
     ax.set_title('Parallel coordinates plot of torsional clustering', size='x-large')
     colors = plt.cm.Set1(numpy.linspace(0, 1, max(categories) + 1 - min(categories)))
@@ -425,7 +488,12 @@ def parallel_coordinates(data, torsion_labels, categories, allow_inversion, ax=N
 def greyscale_visualisation(matrix, max_weight=None, ax=None, filename=None):
     """
     Visulaise a matrix (all entries positive real) as a greyscale square diagram
-    Light = small, black = large
+    Light = small number, dark = large number
+    Accepts:
+        A matrix to visualise
+        An optional value to set to black
+        An optional matplotlib axis object
+        An optional filename to save to instead of showing
     If a maximum weight (which will correspond to black) is not provided,
     2**ceiling(log2[max]) is used, where max is the largest entry in the matrix
     """
