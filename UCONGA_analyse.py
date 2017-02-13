@@ -375,15 +375,6 @@ def all_the_rmsds(molecules, allow_inversion=True):
         rmsds[i][j] = r
         rmsds[j][i] = r
     return rmsds
-
-
-def arrange_by_clustering(to_be_arranged, ordering):
-    '''
-    Rearrange a list according to a specified ordering
-    '''
-    tmp = [(ordering[idx], i) for idx, i in enumerate(to_be_arranged)]
-    tmp.sort()
-    return [i[1] for i in tmp]
 ###### Graphing functions
 
 
