@@ -403,7 +403,7 @@ class molecule(object):
         for each_idx, each_atom in enumerate(self.atoms):
             all_ids_neighbours = each_atom.get_bond_ids()
             # An atom is a chiral centre if it has four neighbours, none of which
-            .e. the one chiral centers
+            # are in the same symmetry class
             num_neighbours = len(all_ids_neighbours)
             num_unique_neighbours = len(set([new_ranks[q] for q in all_ids_neighbours]))
             if num_neighbours == num_unique_neighbours == 4:
