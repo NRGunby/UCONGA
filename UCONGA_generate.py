@@ -12,6 +12,10 @@ linear_tolerance = radians(170)
 def choose_scaling(mol):
     '''
     Selects a van der Waals scaling factor based on the steric crowding
+    Accepts:
+        A molecule object
+    Returns:
+        The van der Waals scaling factor as a float
     An infinite linear alkane (average heavy valence=2) will have a high scaling factor
     An infinite diamondoid (average heavy valence=4) will have a low scaling factor
     '''
@@ -37,9 +41,11 @@ def choose_scaling(mol):
 
 def test_pair(pair, scaling):
     '''
-        Test whether a pair of atoms are too close
-        Too close means they are closer than the scaled sum of their vdW radii
-        Returns True if the pair is OK and False if it is not
+    Test whether a pair of atoms are closer than the scaled sum of their vdW radii
+    Accepts:
+        A pair of atom ojects
+        The van der Waals scaling factor, typically between 0.7 and 0.9
+    Returns True if the pair is not too close and False if it is
         '''
     radii = [each.get_vdw() for each in pair]
     if 0.7 < scaling and set([i.num for i in pair]) in [set([1, 7]), set([1, 7])]:
@@ -55,7 +61,9 @@ def test_pair(pair, scaling):
 def test_mol(mol, scaling):
     '''
     Test whether any >1,4 neighbours in an molecule are too close together
-    Too close is defined as it is for test_pair
+    Accepts:
+        A molecule object
+        The van der Waals scaling factor, typically between 0.7 and 0.9
     Return True if the conformer is OK and False if it is not
     '''
     for each_pair in mol.all_pairs():
@@ -85,7 +93,10 @@ def test_ring(atom_1, atom_2):
     '''
     Test if the bond between two atoms is prevented
     from rotation due to being in a ring
-    Returns True if not in a ring, False if it is
+    Accepts:
+        Two atom obects
+    Returns:
+        True for bonds that can rotate, False for bonds that can't
     '''
     ids = [each.get_id() for each in (atom_1, atom_2)]
     return not atom_1.mol.is_in_ring(*ids)
@@ -95,7 +106,10 @@ def test_order(atom_1, atom_2):
     '''
     Test if the bond between two atoms is prevented from
     rotation due to its order
-    Returns True for single bonds, False for multiple bonds
+    Accepts:
+        Two atom objects
+    Returns:
+        True for bonds that can rotate, False for bonds that can't
     '''
     ids = [each.get_id() for each in (atom_1, atom_2)]
     return atom_1.mol.get_bond_order(*ids) < 1.5
@@ -104,8 +118,10 @@ def test_order(atom_1, atom_2):
 def test_interesting(atom_1, atom_2):
     '''
     Tests if there is any point to rotating about the bond
-    Returns True if each end has at least one heavy atom (defined as > H)
-    and, if there is only one, it is not linear
+    Accepts:
+        Two atom objects
+    Returns:
+        True for bonds that can rotate, False for bonds that can't
     '''
     ats = [atom_1, atom_2]
     this_mol = atom_1.mol
@@ -126,8 +142,10 @@ def test_interesting(atom_1, atom_2):
 def test_rotatable(atom_1, atom_2):
     '''
     Tests if the bond between two atoms is rotatable
-    A bond is rotatable if it is single, not in a ring,
-    and has at least one heavy atom attached to each end
+    Accepts:
+        Two atom objects
+    Returns:
+        True for bonds that can rotate, False for bonds that can't
     '''
     return (test_interesting(atom_1, atom_2) and
             test_ring(atom_1, atom_2) and test_order(atom_1, atom_2))
@@ -138,6 +156,10 @@ def find_rotatable_bonds(mol):
     Finds all rotatable bonds in a molecule
     Rotatable bonds are single bonds not in a ring that have at least one
     non-H atom at each end
+    Accepts:
+        A molecule object
+    Returns:
+        A list of bonds as pairs of atom ids
     '''
     torsions = [[i for i in each]
                 for each in mol.all_torsions()]
@@ -152,7 +174,13 @@ def find_rotatable_bonds(mol):
 
 def make_rotamer(mol, rotatable_bonds, new_values):
     '''
-    Copies a molecule and increments torsions of rotatable bonds
+    Copies a molecule and change torsions
+    Accepts:
+        A molecule object
+        A list of torsions to set, as a list of quadruples of atom ids
+        A list of new torsion values, in radians
+    Returns:
+        A new molecule object
     '''
     new_rotamer = mol.copy()
     current_torsions = [new_rotamer.get_torsion(*each)
@@ -166,6 +194,14 @@ def make_rotamer(mol, rotatable_bonds, new_values):
 
 def is_symmetrical_rotor(each_bond, backbone, classes):
     '''
+    Tests if a bond is to a symmetrical rotor
+    Accepts:
+        A bond as a pair of atom ids
+        A molecule object
+        A list of the symmetry classes of all the atoms in the molecule
+    Returns:
+        True if the bond is to a symmetrical rotor, false otherwise
+
     For an atom to be a symmetrical rotor, all children must be in the same symmetry class
     All children must be childless or in a ring rith the atom
     All children must be equidistant in a Newmann pprojection
@@ -199,8 +235,17 @@ def is_symmetrical_rotor(each_bond, backbone, classes):
 
 def find_older_sibling_ids(each_bond, each_id, backbone, classes, bonds_by_B_atom={}):
     '''
+    A utility for find_max_angles
     Checks if a bond is part of a group of identical bonds
     and returns the ids of all identical bonds with lower ids
+    Accepts:
+        A bond as a pair of atom ids
+        The id of this bond in the list of bonds in the calling function
+        A molecule object
+        A list of symmetry classes
+        A {id of 2nd closest to center atom:(each_id, each_bond)} dictionary
+    Returns:
+        A list of 'older sibling' bonds as strings of the ids in the list in the calling function
     '''
     ret = []
     if each_bond[1] in bonds_by_B_atom:
@@ -212,12 +257,22 @@ def find_older_sibling_ids(each_bond, each_id, backbone, classes, bonds_by_B_ato
         bonds_by_B_atom[each_bond[1]].append((each_id, each_bond))
     except KeyError:
         bonds_by_B_atom[each_bond[1]] = [(each_id, each_bond)]
+
     return ret
 
 
 def find_max_angles(rotatable_bonds, centralness, backbone, classes, allow_inversion):
     '''
     Assigns maximum torsion angles to all rotatable bonds in a system
+    Accepts:
+        A list of torsions as quadruples of atom ids
+        A list of how close each atom is to the (graph-theoretical) center
+            of the molecule (lower numbers == more central)
+        A molecule object
+        A list of the symmetry classes of the atoms
+        Whether or not enantiomeric conformers should be treated as identical
+    Returns:
+        A list of the limits of the maximum angles for each torsion
     These default to being 360 degrees
     If the bond is to a symmetric rotor,
         the maximum is devided by the symmetry of the rotor
@@ -226,7 +281,9 @@ def find_max_angles(rotatable_bonds, centralness, backbone, classes, allow_inver
     If the bond is part of a group of identical bonds, it is limited
         to being less than the torsion angle of the bond
         immediately before it in the group
-    This avoids generating any equivalent/degenerate conformers
+    Hence, a torsion can sometimes have multiple limits, with the lowest limit being
+        used
+    This set of limits avoids generating any equivalent/degenerate conformers
     '''
     # Variable names are based on torsions being (centre out) A-B-C-D
     maxes = []
@@ -251,11 +308,21 @@ def find_max_angles(rotatable_bonds, centralness, backbone, classes, allow_inver
 
 def make_all_rotations(mol, final_delta, scaling, allow_inversion, fix=[], vary_rings=2):
     '''
-    A generator that yields all valid rotamers of a molecule
-    Scaling is a scaling factor as defined for test_pair and test_mol
-    Delta is the amount (in degrees) to increment torsions by in-between trials
-    Fix is a list of bonds to hold constant (important for divide-and-conquer, may be useful for custom work)
-    Vary_rings can be 0 (hold all rings constant), 1 (reflect only), or 2 (full flip-of-fragments) (important for divide-and-conquer, may be useful for custom work)
+    Generate a conformer ensemble using a basic algorithm
+    Accepts:
+        mol: a molecule object
+        final_delta: the smallest step size to use when scannig torsions, in degrees
+        scaling: a scaling factor for van der Waals radii, typically 0.7-0.9
+        allow_inversion: whether to treat enantiomeric conformers as identical or not
+        fix: an optional list of bonds to not rotate, as ??? of atoms ids.
+             This is important for the divide-and-conquer algorithm, and may also
+             be used for customisation to your research needs
+        vary rings: How many ring conformers to generate.
+            0 => Rings are held fixed in the input geometries
+            1 => Rings are flipped
+            2 => 2-atom groups within rings are flipped
+    Yields:
+        A series of conformers as molecule objects
     '''
     backbone, backbone_to_mol = mol.copy_without_H()
     mol_to_backbone = {v: k for k, v in backbone_to_mol.items()}
@@ -338,6 +405,14 @@ def make_all_rotations(mol, final_delta, scaling, allow_inversion, fix=[], vary_
 
 ### Divide-and-conquer functions
 def divide_linear(mol, split):
+    '''
+    Divide a molecule into fragments based on user commands
+    Accepts:
+        A molecule object
+        A list of bonds to split on as pairs of atom ids
+    Returns:
+        A list of fragments as lists of atom ids
+    '''
     # Start by splitting the molecule into groups by breaking the bonds
     repair = []
     for each_pair in split:
@@ -362,6 +437,10 @@ def group_rotatable_bonds(mol):
     Helper function for divide_natural
     Finds groups of connected rotatable bonds
     If they are longer than 6 bonds, splits as evenly as possible
+    Accepts:
+        A molecule object
+    Returns:
+        A list of groups of connected rotatable bonds as lists of bonds as pairs of atom ids
     '''
     rbs = [i[1:3] for i in find_rotatable_bonds(mol)]
     rb_id_groups = []
@@ -399,6 +478,15 @@ def group_rotatable_bonds(mol):
 
 
 def attach_rigid_linkers(rotatable_bonds, mol):
+    '''
+    A utility function for divide_natural
+    Takes sets of connected rotatable bonds and turns them into complete fragments
+    Accepts:
+        A list of groups of connected rotatable bonds, as lists of bonds as pairs of atom ids
+        A molecule object
+    Returns:
+        A list of fragments as lists of atom ids
+    '''
     rotatable_sets = [set(chain(*g)) for g in rotatable_bonds]
     group_ids = []
     for each_idx, each_rotatable_set in enumerate(rotatable_sets):
@@ -417,6 +505,17 @@ def attach_rigid_linkers(rotatable_bonds, mol):
 
 
 def recombine_fragments(fragment_id_grps, mol, num_bonds_in_frag):
+    '''
+    A utility method for divide_natural
+    Merges fragments that are cis or ortho to each other (and hence interact)
+    so long as that does not violate the size limit
+    Accepts:
+        A list of fragments as lists of atom ids
+        A molecule object
+        A list of the numbers of rotatable bonds per fragment
+    Returns:
+        A list of fragments as lists of atom ids
+    '''
     combined_groups = []
     merged = []
     for base_id, each_base_group in enumerate(fragment_id_grps):
@@ -457,6 +556,14 @@ def recombine_fragments(fragment_id_grps, mol, num_bonds_in_frag):
 
 
 def divide_natural(mol, split):
+    '''
+    Divide a molecule into fragments based on its chemical structure
+    Accepts:
+        A molecule object
+        split is never used, but is required for API compatibility with divide_linear
+    Returns:
+        A list of fragments as lists of atom ids
+    '''
     rot_bond_id_grps = group_rotatable_bonds(mol)
     group_sizes = [len(i) for i in rot_bond_id_grps]
     fragment_id_grps = attach_rigid_linkers(rot_bond_id_grps, mol)
@@ -466,6 +573,17 @@ def divide_natural(mol, split):
 
 # Return the return lists
 def recombine(base_mol, group_conformers, subset_rotatable, subset_to_mol):
+    '''
+    Make molecule conformers based of fragments conformers
+    Accepts:
+        A molecule object
+        A list of lists of conformers for each fragment
+        A list of lists of rotatable bonds for each fragment, with fragment
+            numbering, as pairs of atom ids
+        A list of {fragment atom id: molecule atom id} dictionaries
+    Yields:
+        A series of conformers as molecule objects
+    '''
     count = 1
     for each_set in product(*group_conformers):
         count += 1
@@ -481,7 +599,23 @@ def recombine(base_mol, group_conformers, subset_rotatable, subset_to_mol):
         yield recombined_mol
 
 
-def divide_and_conquer(mol, final_detla, scaling, allow_inversion, split=[], vary_rings=1):
+def divide_and_conquer(mol, final_delta, scaling, allow_inversion, split=[], vary_rings=1):
+    '''
+    Generate a conformer ensemble using a divide-and-conquer algorithm
+    Accepts:
+        mol: a molecule object
+        final_delta: the smallest step size to use when scannig torsions, in degrees
+        scaling: a scaling factor for van der Waals radii, typically 0.7-0.9
+        allow_inversion: whether to treat enantiomeric conformers as identical or not
+        split: an optional list of bonds as pairs of atom ids to divide on. If not provided,
+               the algorithm determines where to split based on the structure of the molecule
+        vary rings: How many ring conformers to generate.
+            0 => Rings are held fixed in the input geometries
+            1 => Rings are flipped
+            2 => 2-atom groups within rings are flipped
+    Yields:
+        A series of conformers as molecule objects
+    '''
     if not split:
         group_ids = divide_natural(mol, split)
     else:
@@ -523,13 +657,13 @@ def divide_and_conquer(mol, final_detla, scaling, allow_inversion, split=[], var
     # Make the conformer ensembles for each section of the molecule
     group_conformers = []
     for each_subset, each_fix in zip(group_mols, sub_fix):
-        base_ensemble = [q for q in make_all_rotations(each_subset, final_detla, scaling, allow_inversion, each_fix, False)]
+        base_ensemble = [q for q in make_all_rotations(each_subset, final_delta, scaling, allow_inversion, each_fix, False)]
         group_conformers.append(base_ensemble)
         allow_inversion = False  # Only the first subgroup should have its first bond restricted
     # Recombine
     for recombined_mol in recombine(mol, group_conformers, sub_rotated, subset_to_mol):
         count = 0
-        for each_conformer in make_all_rotations(recombined_mol, final_detla, scaling, allow_inversion, mol_fix, vary_rings):
+        for each_conformer in make_all_rotations(recombined_mol, final_delta, scaling, allow_inversion, mol_fix, vary_rings):
             count += 1
             yield each_conformer
 
