@@ -28,8 +28,8 @@ def canonicalise(mol):
     Canonicalise a molecule with respect to nuclear permutational symmetry
     For each symmetric group, choose the equivalent position that UCONGA_generate
         would generate
-    '''
     Accepts: a molecule object
+    '''
     rb = UCONGA.find_rotatable_bonds(mol)
     centralness = [sum(i) for i in mol.distances]
     classes = mol.get_morgan_equivalencies()
