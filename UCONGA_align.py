@@ -7,6 +7,12 @@ import numpy
 def align_to(mol_to_align, ref_mol, allow_inversion, center_id):
     '''
     Aligns one molecule to another
+    Accepts:
+        A molecule object to move
+        A molecule object to hold fixed
+        Whether inversion is allowed (alternatively, whether enantiomers should
+                                      be treated as identical or not)
+        A list of atom ids to base the alignment on
     '''
     ref_coords = numpy.array([i.coords for i in ref_mol.atoms
                               if i.get_id() in center_id])

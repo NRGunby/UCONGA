@@ -49,7 +49,7 @@ class molecule(object):
 
     def is_valid_id(self, idx):
         '''
-        Checks that something is the id of one of this molecule's atoms
+        Checks that an int is the id of one of this molecule's atoms
         Accetps:
             An id
         Returns:
@@ -59,12 +59,13 @@ class molecule(object):
 
     def add_atom(self, new_atom, done=True):
         '''
-        Adds an atom
+        Adds an atom to the molecule
         Accepts:
             An atom object
             Optional: A boolean representing whether to rebuild other arrays or not
                       This defaults to True, but if many atoms are being added set to
                       False for all but the last to increase efficiency
+        Returns: nothing, modifies the molecule in-place
         '''
         self.atoms.append(new_atom)
         new_atom.mol = self
@@ -84,8 +85,9 @@ class molecule(object):
             The int ids of the two atoms to bond
             The int bond order
             Optional: A boolean representing whether to rebuild other arrays or not
-                      This defaults to True, but if many atoms are being added set to
+                      This defaults to True, but if many bonds are being added set to
                       False for all but the last to increase efficiency
+        Returns: nothing, modifies the molecule in-place
         '''
         if id1 == id2:
             raise(ValueError, 'Cannot bond an atom to itself')
@@ -102,7 +104,7 @@ class molecule(object):
     def all_bonds(self):
         '''
         Iterate over all bonds
-        Yields pairs of atom ids
+        Yields: pairs of atom ids
         '''
         for idx_atom_1, idx_atom_2 in combinations(range(len(self.atoms)), 2):
             if self.bonds[idx_atom_1][idx_atom_2]:
@@ -114,19 +116,19 @@ class molecule(object):
         If they are not bonded, returns 0
         If they are part of an aromatic ring, returns 1.5
         Accepts:
-            Two int atom ids
+            Two atom ids as ints
         Returns:
-            An int
+            A float
         '''
         return self.bonds[id1][id2]
 
     def get_angle(self, id_1, id_center, id_2):
         '''
-        Returns the angle in radians defined by three atoms
+        Find the angle defined by three atoms
         Accepts:
             Three atom ids, where the middle id is the center of the angle
         Returns:
-            A float
+            The angle between them in radians
         '''
         atoms = [self.atoms[i] for i in id_1, id_center, id_2]
         a, b = [atoms[1].get_vector(i) for i in (atoms[0], atoms[2])]
@@ -140,14 +142,15 @@ class molecule(object):
 
     def coord_matrix(self):
         '''
-        Returns a numpy array of the coordinates of all the atoms in the molecule
+        Accepts: Nothing
+        Returns: The coordinates of all the atoms as a numpy array
         '''
         return numpy.array([i.coords for i in self.atoms])
 
     def all_torsions(self):
         '''
         Iterate over all torsions
-        Yields 4-tuples of atom ids
+        Yields: 4-tuples of atom ids
         '''
         for middle in self.all_bonds():
             ends = [self.atoms[each].get_bond_ids() for each in middle]
@@ -163,6 +166,7 @@ class molecule(object):
     def all_pairs(self):
         '''
         Iterate over all nonbonded pairs
+        Yields: pairs of atom ids
         '''
         for idx_atom_1, idx_atom_2 in combinations(range(len(self.atoms)), 2):
             if self.distances[idx_atom_1][idx_atom_2] > 2:
@@ -260,7 +264,7 @@ class molecule(object):
 
     def is_in_ring(self, id1, id2):
         '''
-        Checks if bond between two atoms with given ids is in a ring
+        Checks if two atoms are in the same ring
         Accepts:
             Two atom ids
         Returns:
@@ -357,16 +361,16 @@ class molecule(object):
         namely alkenes, allenes, and higher cumulenes.
         Accepts:
             A list of the symmetry classes of all atoms in the molecule
-            Returns: A list of the double-bond-group stereochemistry-type
-                     of all atoms in the molecule. This is 0 if there is no
-                     double-bond-group stereochemistry, and 1 or 2 arbritratily but
-                     consistently otherwise
+
+        Returns: A list of the double-bond-group stereochemistry-type
+                 of all atoms in the molecule. This is 0 if there is no
+                 double-bond-group stereochemistry, and 1 or 2 arbritratily but
+                 consistently otherwise
         '''
         double_stereochemistry = [0 for i in self.atoms]
         for n_bonds_in_chain, ends, each_idx_1, each_idx_2 in self.find_dbl_systems(sym_classes):
             if double_stereochemistry[each_idx_1] == double_stereochemistry[each_idx_2] == 0:
-                # Choose the appropriate trigonometric function for the geometry
-                # I.e. the one that will give values of ~ 1 and ~ -1
+                # Choose the appropriate trigonometric function for the .e. the one that will give values of ~ 1 and ~ -1
                 # Cosine for coplanar, sine for perpendicular
                 if n_bonds_in_chain % 2:
                     op = cos
@@ -386,17 +390,20 @@ class molecule(object):
 
     def assign_tet_stereochem(self, new_ranks):
         '''
-        Another utility for get_morgan_equivalencies
-        Same logic as assign_dbl_stereochem
-        Stereochemistry is determined by seeing if the 2nd-
-        highest priority substituent is clockwise or
-        anticlockwise of the highest-priority substituent
+        Finds and assigns stereocehmistry to chiral centers
+
+        Accepts: A list of the current symmetry classes of each atom
+
+        Returns: A list of the tetrahedral stereochemistry-type
+                 of all atoms in the molecule. This is 0 if there is no
+                 tetrahedral stereochemistry, and 1 or 2 arbritratily but
+                 consistently otherwise
         '''
         tetrahedral_stereochemistry = [0 for i in self.atoms]
         for each_idx, each_atom in enumerate(self.atoms):
             all_ids_neighbours = each_atom.get_bond_ids()
             # An atom is a chiral centre if it has four neighbours, none of which
-            # are in the same symmetry class
+            .e. the one chiral centers
             num_neighbours = len(all_ids_neighbours)
             num_unique_neighbours = len(set([new_ranks[q] for q in all_ids_neighbours]))
             if num_neighbours == num_unique_neighbours == 4:
@@ -413,6 +420,9 @@ class molecule(object):
                 high_x_mat = linalg.rotation_from_axes(vectors[-1].transpose(), [1, 0, 0])
                 aligned_vectors = [high_x_mat.dot(q) for q in z_aligned_vectors]
                 number_2 = aligned_vectors[-2].transpose()
+                # Stereochemistry is determined by seeing if the 2nd-
+                # highest priority substituent is clockwise or
+                # anticlockwise of the highest-priority substituent
                 if atan2(number_2[1], number_2[0]) > 0:
                     tetrahedral_stereochemistry[each_idx] = 2
                 else:
@@ -421,8 +431,17 @@ class molecule(object):
 
     def find_para_candidates(self, sym_classes):
         '''
-        Para-stereocentres, as defined in Razinger et al,
+        Find parastereocenter candidates
+        Parastereocenter candidates are parastereocenters iff they are connected
+        by a ring system to other parastereocenter candidates
+
+        Accepts: A list of the current symmetry classes of each atom
+
+        Returns: A list of the ids of atoms that might be parastereocenters
+
+        Para-stereocentres are defined in Razinger et al,
         J. Chem. Inf. Comput. Sci., 1993, p 812
+
         A para-stereocentre is a tetrahedral atom with three different
         groups or a double bond with different groups on one end and
         identical groups on the other, where the identical groups are
@@ -466,9 +485,9 @@ class molecule(object):
 
     def find_para_groups(self, sym_classes):
         '''
-        Groups cantidate parastereocentres by which ring system they are in
-        The ring systems returned by ring_lib can't be used since here we consider rings joined by
-        spiro centres and double bonds to be part of the same system
+        Find cantidate parastereocentres and group them by ring system
+        Accepts: A list of the current symmetry classes of each atom
+        Returns: A list of groups of parastereocenters
         '''
         all_ids_ring_atoms, candidates = self.find_para_candidates(sym_classes)
         para_groups = []
@@ -479,6 +498,8 @@ class molecule(object):
                 paras_touched.append(each_atom_candidate)
                 i_groups = [each_atom_candidate]
                 rings_stack = []
+                # The ring systems returned by ring_lib can't be used since here we consider rings joined by
+                # spiro centres and double bonds to be part of the same system
                 # Start by finding the ring(s) that this atom is in
                 for r in self.rings:
                     if each_atom_candidate.get_id() in r:
@@ -526,14 +547,17 @@ class molecule(object):
     def assign_para_stereochem(self, sym_classes):
         '''
         Assigns labels to the parastereocentres previously found and grouped
-        Those that are in a group of one can be discarded,
-        as they are not actually parastereocentres.
-        Those in larger groups have labels assigned based on their relative
-        stereochemistry to the other parastereocentres in the group
+        Accepts: A list of current symmetry classes
+        Returns: A list of updated symmetry classes
+
         '''
         para_stereochemistry = [0 for i in self.atoms]
         para_groups = self.find_para_groups(sym_classes)
         all_ids_ring_atoms, candidates = self.find_para_candidates(sym_classes)
+        # Those that are in a group of one can be discarded,
+        # as they are not actually parastereocentres.
+        # Those in larger groups have labels assigned based on their relative
+        # stereochemistry to the other parastereocentres in the group
         # Now we have all the groups of parastereocentres, time to assign the geometry
         # This is more complicated than for cis/trans in a double bond, because there
         # can be more than two in a group (e.g. 1, 3, 5-trimethylcyclohexane,
@@ -582,6 +606,8 @@ class molecule(object):
             permutational symmetry
         Based on Moreau, Nouv. J. Chim., 1980, p 17
 
+        Returns: The symmetry class of each atom in the molecule
+
         My changes include:
         Not performing a charge-based step
         Modifying the double-bond step to include allenes and highere cumulenes
@@ -624,7 +650,7 @@ class molecule(object):
 
     def get_torsion(self, id1, id2, id3, id4):
         '''
-        Returns the 1-2-3-4 torsion in radians
+        Get the 1-2-3-4 torsion in radians
         '''
         atoms = [self.atoms[i] for i in (id1, id2, id3, id4)]
         bond_vectors = [i.get_vector(j) for i, j in zip(atoms[:-1], atoms[1:])]
@@ -636,8 +662,12 @@ class molecule(object):
 
     def set_torsion(self, id1, id2, id3, id4, torsion):
         '''
-        Rotates atom 1 and all its children aound that atom2-atom3 bond
-        so that the 1-2-3-4 torsion is the supplied value (in radians)
+        Set the torsion of one of the bonds in the molecule
+        Accepts:
+            4 atom ids, which should be connected 1-2-3-4
+            A new torsion value in radians
+        Details:
+            Rotates atom 2 and all its children around the atom2-atom3 bond
         '''
         # Start by finding the children of atom 2(all closer to it than atom 3)
         children = []
@@ -677,14 +707,16 @@ class molecule(object):
 
     def translate(self, vector):
         '''
-        Translates the entire molecule by the supplied 3-vector
+        Translates the entire molecule
+        Accepts: a 3-vector to translate by as a numpy array
         '''
         for i in self.atoms:
             i.translate(vector)
 
     def rotate(self, matrix):
         '''
-        Rotates the entire molecule by the supplied rotation matrix
+        Rotates the entire molecule
+        Accpets: A rotation matrix as a numpy array
         '''
         for i in self.atoms:
             i.rotate(matrix)
@@ -703,6 +735,8 @@ class molecule(object):
         '''
         Generic method to get a fragment of a molecule
         Can also be used to renumber the atoms in a molecule
+        Accepts: A list of atom ids to copy in their new order
+        Returns: A molecule object
         '''
         new_atoms = [self.atoms[each].copy() for each in ids]
         new_bonds = [[self.bonds[j][i] for j in ids] for i in ids]
@@ -758,6 +792,10 @@ class molecule(object):
         '''
         Test if a permutation is an automorphism
         See Razinger et al, J. Chem. Inf. Comput. Sci. 1993 (33), 197-201
+        Accepts:
+            A list of the new id for each atom
+        Returns:
+            True or false
         '''
         permutation = [[0 for j in self.atoms] for i in self.atoms]
         for idx, i in enumerate(ordering):
@@ -775,7 +813,7 @@ class molecule(object):
     def to_cml(self):
         '''
         Creates a cml molecule element
-        Uses the original (i.e. non-aromatised)
+        Uses the original (i.e. non-aromatised) bond orders
         '''
         original_bonds = self.bonds
         for each_tuple in self.aromatised_bonds:
@@ -802,6 +840,13 @@ class molecule(object):
     def to_xyz(self, format='xyz'):
         '''
         Returns the text of an xyz file describing the molecule
+        Accepts: A style string, one of 'xyz', 'gauss', 'nw', 'gms'
+        Returns: A string representation of the molecule in the specified format
+        Format string meaning:
+        xyz   => xyz file, OpenBabel dialect
+        gauss => Gaussian input file
+        nw    => nwchem input file
+        gms   => GAMESS input file
         '''
         ret = []
         if format == 'xyz':
@@ -824,6 +869,10 @@ class molecule(object):
 def from_cml(file_name):
     '''
     Parses a cml file
+    Accepts:
+        The name of a cml file
+    Returns:
+        A molecule object
     '''
     try:
         tree = ET.parse(file_name)
@@ -852,6 +901,10 @@ def rank(weights):
     '''
     A utility method to perform the ranking step
     in a Morgan-based algorithm
+    Accepts:
+        A list of the weights of each atom
+    Returns:
+        A list of the ranking of each atom
     '''
     working_list = sorted([[i, idx] for idx, i in enumerate(weights)])
     sorted_weights = sorted(weights)
@@ -869,6 +922,11 @@ def rank(weights):
 def rank_until_converged(initial_ranks, all_ids_neighbours):
     '''
     Updates the ranking in a Morgan algorithm
+    Accepts:
+        A list of the current ranks for the morgan algorithms
+        A list of lists of the ids of the neighbours of each atom
+    Returns:
+        A list of the updated ranks for the morgan algorithm
     '''
     old_ranks = []
     new_ranks = initial_ranks

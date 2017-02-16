@@ -3,14 +3,20 @@ import numpy
 
 
 def normalise(a):
-    'Normalises a vector'
+    '''
+    Normalises a vector
+    Accepts: a numpy vector
+    Returns: a numpy vector pointing in the same direction with magnitude 1
+    '''
     a_norm = numpy.linalg.norm(a)
     return numpy.array([float(each)/a_norm for each in a])
 
 
 def rotation_axis_angle(axis, angle):
     '''
-    Returns the matrix for rotation by an angle around an axis
+    Returns the 3x3 matrix for rotation by an angle around an axis
+    Accepts: an axis as a numpy array, and an angle in radians
+    Returns: a rotation matrix as a numpy array
     '''
     sin = math.sin(angle)
     cos = math.cos(angle)
@@ -27,8 +33,9 @@ def rotation_axis_angle(axis, angle):
 
 def rotation_from_axes(ax1, ax2):  # To test
     '''
-    Given two 3-vectors as tuples, gives the matrix that will rotate the first
-    to the second
+    Calculate the matrix to rotate one vector to another
+    Accepts: two 3-vectors as numpy arrays
+    Returns: a rotation matrix as a numpy array
     '''
     # Probably a more numpy-ish way of doing this
     if max(numpy.absolute(ax1 - ax2)) < 1E-7:
@@ -46,6 +53,11 @@ def rotation_from_axes(ax1, ax2):  # To test
 
 
 def angle_between(vec1, vec2):
+    '''
+    Calculate the angle between two vectors
+    Accepts: two vectors as numpy arrays
+    Returns: the angle in radians
+    '''
     return math.acos(float(vec1.dot(vec2)) /
                      (numpy.linalg.norm(vec1) * numpy.linalg.norm(vec2)))
 
@@ -53,7 +65,9 @@ def angle_between(vec1, vec2):
 def reflection_plane(vec1, vec2):
     '''
     Returns the Householder reflection matrix for reflection through
-    the plane containning two vectors
+    a plane
+    Accepts: two non-parallel vectors in the plane as numpy arrays
+    Returns: the 3x3 reflection matrix as a numpy array
     '''
     norm = numpy.cross(vec1, vec2)
     a, b, c = normalise(norm)
