@@ -447,8 +447,8 @@ def parallel_coordinates(data, torsion_labels, categories, allow_inversion, ax=N
         # To average angles, they need to be converted to sines and cosines:
         tmp = []
         for mol in each_cluster:
-            for angle in mol:
-                tmp.extend((math.sin(angle), math.cos(angle)))
+            transformed_angles = [(math.sin(angle), math.cos(angle)) for angle in mol]
+            tmp.append([i for i in chain(*transformed_angles)])
         cart_conformers = numpy.array(tmp)
         average = numpy.mean(cart_conformers, axis=0)
         center = [math.atan2(s, c) for s, c in zip(average[::2], average[1::2])]
