@@ -376,9 +376,7 @@ def make_all_rotations(mol, final_delta, scaling, allow_inversion, fix=[], vary_
                                 # In a modulo distance with radix r, to see if a and b are closer than d, use the formula:
                                 # |(r/2) - | a - b | | > ( (r/2) - d)
                                 # Here r = 2*pi and d is in the ref_deltas column vector
-                                diff = 180 - numpy.abs(ref_conformers - test_curr_angles)
-                                if not((len(ref_deltas[0])) or
-                                       numpy.less(numpy.abs(diff), 180 - ref_deltas).any(axis=1).all()):
+                                if not(len(ref_deltas[0])) or numpy.less(numpy.abs(180 - numpy.abs(ref_conformers - test_curr_angles)), 180 - ref_deltas).any(axis=1).all():
                                     with warnings.catch_warnings() as w:
                                         # Any warning messages will come from weird molecule structures
                                         # They will already have been seen
